@@ -1,0 +1,66 @@
+<application>
+  <component name="ProjectJdkTable">
+    <jdk version="2">
+      <name value="Python 3.7" />
+      <type value="Python SDK" />
+      <version value="Python 3.7.0" />
+      <homePath value="E:\dev\python\Python37\python.exe" />
+      <roots>
+        <classPath>
+          <root type="composite">
+            <root url="file://C:/dev/Python27/ArcGIS10.3" type="simple" />
+            <root url="file://E:/dev/python/Python37/DLLs" type="simple" />
+            <root url="file://E:/dev/python/Python37/Lib" type="simple" />
+            <root url="file://E:/dev/python/Python37" type="simple" />
+            <root url="file://E:/dev/python/Python37/Lib/site-packages" type="simple" />
+            <root url="file://$USER_HOME$/.PyCharmCE2018.2/system/python_stubs/-1058312112" type="simple" />
+            <root url="file://$APPLICATION_HOME_DIR$/helpers/python-skeletons" type="simple" />
+            <root url="file://$APPLICATION_HOME_DIR$/helpers/typeshed/stdlib/3.4" type="simple" />
+            <root url="file://$APPLICATION_HOME_DIR$/helpers/typeshed/stdlib/3" type="simple" />
+            <root url="file://$APPLICATION_HOME_DIR$/helpers/typeshed/stdlib/2and3" type="simple" />
+            <root url="file://$APPLICATION_HOME_DIR$/helpers/typeshed/third_party/3" type="simple" />
+            <root url="file://$APPLICATION_HOME_DIR$/helpers/typeshed/third_party/2and3" type="simple" />
+          </root>
+        </classPath>
+        <sourcePath>
+          <root type="composite" />
+        </sourcePath>
+      </roots>
+      <additional />
+    </jdk>
+    <jdk version="2">
+      <name value="Python 3.6 (python)" />
+      <type value="Python SDK" />
+      <version value="Python 3.6.5" />
+      <homePath value="C:\Program Files\ArcGIS\Pro\bin\Python\envs\arcgispro-py3\python.exe" />
+      <roots>
+        <classPath>
+          <root type="composite">
+            <root url="file://C:/dev/Python27/ArcGIS10.3" type="simple" />
+            <root url="file://C:/Program Files/ArcGIS/Pro/bin/Python/envs/arcgispro-py3/DLLs" type="simple" />
+            <root url="file://C:/Program Files/ArcGIS/Pro/bin/Python/envs/arcgispro-py3/Lib" type="simple" />
+            <root url="file://C:/Program Files/ArcGIS/Pro/bin/Python/envs/arcgispro-py3" type="simple" />
+            <root url="file://C:/Program Files/ArcGIS/Pro/bin/Python/envs/arcgispro-py3/Lib/site-packages" type="simple" />
+            <root url="file://C:/Program Files/ArcGIS/Pro/bin" type="simple" />
+            <root url="file://C:/Program Files/ArcGIS/Pro/Resources/ArcPy" type="simple" />
+            <root url="file://C:/Program Files/ArcGIS/Pro/Resources/ArcToolBox/Scripts" type="simple" />
+            <root url="jar://C:/Program Files/ArcGIS/Pro/bin/Python/envs/arcgispro-py3/Lib/site-packages/future-0.16.0-py3.6.egg!/" type="simple" />
+            <root url="jar://C:/Program Files/ArcGIS/Pro/bin/Python/envs/arcgispro-py3/Lib/site-packages/pytz-2018.3-py3.6.egg!/" type="simple" />
+            <root url="jar://C:/Program Files/ArcGIS/Pro/bin/Python/envs/arcgispro-py3/Lib/site-packages/sympy-1.1.1-py3.6.egg!/" type="simple" />
+            <root url="file://$USER_HOME$/.PyCharmCE2018.2/system/python_stubs/-923924120" type="simple" />
+            <root url="file://$APPLICATION_HOME_DIR$/helpers/python-skeletons" type="simple" />
+            <root url="file://$APPLICATION_HOME_DIR$/helpers/typeshed/stdlib/3.4" type="simple" />
+            <root url="file://$APPLICATION_HOME_DIR$/helpers/typeshed/stdlib/3" type="simple" />
+            <root url="file://$APPLICATION_HOME_DIR$/helpers/typeshed/stdlib/2and3" type="simple" />
+            <root url="file://$APPLICATION_HOME_DIR$/helpers/typeshed/third_party/3" type="simple" />
+            <root url="file://$APPLICATION_HOME_DIR$/helpers/typeshed/third_party/2and3" type="simple" />
+          </root>
+        </classPath>
+        <sourcePath>
+          <root type="composite" />
+        </sourcePath>
+      </roots>
+      <additional />
+    </jdk>
+  </component>
+</application>
