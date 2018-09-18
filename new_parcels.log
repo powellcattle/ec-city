@@ -1,0 +1,7 @@
+04/21/2016 05:00:07 PM DEBUG:C:\\Users\\spowell\\AppData\\Roaming\\ESRI\Desktop10.3\\ArcCatalog\\powellcattle.com.sde
+04/21/2016 05:00:08 PM INFO:Workspace (C:\\Users\\spowell\\AppData\\Roaming\\ESRI\Desktop10.3\\ArcCatalog\\powellcattle.com.sde) clear to continue.
+04/21/2016 05:00:10 PM DEBUG:county_parcel_owner exists
+04/21/2016 05:00:10 PM DEBUG:county_parcel_owner_old exists, deleting
+04/21/2016 05:00:10 PM DEBUG:renaming county_parcel_owner to county_parcel_owner_old
+04/21/2016 05:00:24 PM INFO:Connecting to ftp.bisenterprises.com
+04/21/2016 05:00:25 PM ERROR:530 Login or password incorrect!
