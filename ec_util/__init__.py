@@ -20,8 +20,10 @@ def psql_connection(_database=r"elc", _user=r"sde", _password=r"sde", _host=r"lo
         database = r"ec"
     if socket.gethostname() == "gis":
         port = r"5432"
-    if socket.gethostname() == "spowellLaptop":
+    if socket.gethostname() == "home-gis":
         port = r"5432"
+        host = r"localhost"
+        database = r"ec"
     try:
         db = psycopg2.connect(database=database,
                               user=user,

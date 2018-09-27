@@ -90,7 +90,7 @@ def load_unique_street_types():
 
         reader = None
 
-        with open('../data/address/unique_street_types.csv', 'rb') as csvfile:
+        with open('./data/address/unique_street_types.csv', 'rb') as csvfile:
             reader = csv.reader(csvfile, delimiter='\t', quotechar='"')
             next(reader, None)
             for row in reader:
@@ -134,7 +134,7 @@ def load_unique_street_type_aliases():
 
         reader = None
 
-        with open('../data/address/unique_street_type_aliases.csv', 'rb') as csvfile:
+        with open('./data/address/unique_street_type_aliases.csv', 'rb') as csvfile:
             reader = csv.reader(csvfile, delimiter='\t', quotechar='"')
             next(reader, None)
             for row in reader:
@@ -179,7 +179,7 @@ def load_unique_prefix_aliases():
 
         reader = None
 
-        with open('../data/address/unique_prefix_aliases.csv', 'rb') as csvfile:
+        with open('./data/address/unique_prefix_aliases.csv', 'rb') as csvfile:
             reader = csv.reader(csvfile, delimiter='\t', quotechar='"')
             next(reader, None)
             for row in reader:
@@ -224,7 +224,7 @@ def load_unique_street_name_aliases():
 
         reader = None
 
-        with open('../data/address/unique_street_name_alias.csv', 'rb') as csvfile:
+        with open('./data/address/unique_street_name_alias.csv', 'rb') as csvfile:
             reader = csv.reader(csvfile, delimiter='\t', quotechar='"')
             next(reader, None)
             for row in reader:
@@ -271,7 +271,7 @@ def load_unique_full_street_names():
 
         reader = None
 
-        with open('../data/address/unique_full_street_names.csv', 'rb') as csvfile:
+        with open('./data/address/unique_full_street_names.csv', 'rb') as csvfile:
             reader = csv.reader(csvfile, delimiter='\t', quotechar='"')
             next(reader, None)
             for row in reader:
@@ -319,7 +319,7 @@ def load_unique_units():
 
         reader = None
 
-        with open('../data/address/unique_units.csv', 'rb') as csvfile:
+        with open('./data/address/unique_units.csv', 'rb') as csvfile:
             reader = csv.reader(csvfile, delimiter='\t', quotechar='"')
             next(reader, None)
             for row in reader:
@@ -362,7 +362,7 @@ def load_exceptions():
         cur.execute(SQL_CREATE)
         con.commit()
 
-        with open('../data/address/street_name_exceptions.csv', 'rb') as csvfile:
+        with open('./data/address/street_name_exceptions.csv', 'rb') as csvfile:
             reader = csv.reader(csvfile, delimiter='\t', quotechar='"')
             # next(reader, None)
             for row in reader:
@@ -407,7 +407,7 @@ def load_unique_prefixes():
 
         reader = None
 
-        with open('../data/address/unique_prefixes.csv', 'rb') as csvfile:
+        with open('./data/address/unique_prefixes.csv', 'rb') as csvfile:
             reader = csv.reader(csvfile, delimiter='\t', quotechar='"')
             next(reader, None)
             for row in reader:
@@ -618,7 +618,7 @@ def load_unique_street_names():
 
         reader = None
 
-        with open('../data/address/unique_street_names.csv', 'rb') as csvfile:
+        with open('./data/address/unique_street_names.csv', 'rb') as csvfile:
             reader = csv.reader(csvfile, delimiter='\t', quotechar='"')
             next(reader, None)
             for row in reader:
