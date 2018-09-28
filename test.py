@@ -1,56 +1,30 @@
-import random
-
+import ec_arcpy_util
 import arcpy
+import logging
+import sys
+
+logging.basicConfig(format="%(asctime)s %(levelname)s:%(message)s",
+                    filename="test.log",
+                    filemode="w",
+                    level=logging.DEBUG,
+                    datefmt="%m/%d/%Y %I:%M:%S %p")
+
+workspace = r"C:/Users/spowell/AppData/Roaming/Esri/Desktop10.6/ArcCatalog/localhost.sde"
+
+try:
+    workspace = ec_arcpy_util.sde_workspace(workspace)
+
+    arcpy.env.workspace = workspace
+    arcpy.AcceptConnections(workspace, False)
+    arcpy.DisconnectUser(workspace, "ALL")
+
+    data_sets = arcpy.ListDatasets()
+    for ds in data_sets:
+        if ds == "ec.sde.HGAC":
+            print(True)
 
 
-def generate(_unique: set, _range: int) -> object:
-    chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopqrstuvwxyz&^%$#@!~"
-    while True:
-        value: str = "".join(random.choice(chars) for _ in range(_range))
-        if value not in unique:
-            _unique.add(value)
-            return value
 
 
-unique = set()
-# for _ in range(100000):
-#     generate(unique)
-#
-# print(unique[50])
-#
-# for n in unique:
-#     print(n)
-
-# pwid: str = generate(unique, 32)
-# print(pwid)
-# pwid = generate(unique, 64)
-# print(pwid)
-
-
-fields = ["pwid", "pwname"]
-fc_streets = "F:/gis_data/PubWorks/streets.shp"
-with arcpy.da.UpdateCursor(fc_streets, fields) as cursor:
-    for row in cursor:
-        pwid: str = generate(unique, 32)
-        row[0] = pwid
-        pwname: str = generate(unique, 64)
-        row[1] = pwname
-        cursor.updateRow(row)
-
-fc_meter = "F:/gis_data/PubWorks/meter.shp"
-with arcpy.da.UpdateCursor(fc_meter, fields) as cursor:
-    for row in cursor:
-        pwid: str = generate(unique, 32)
-        row[0] = pwid
-        pwname: str = generate(unique, 64)
-        row[1] = pwname
-        cursor.updateRow(row)
-
-sanitary_manholes = "F:/gis_data/PubWorks/sanitary_manholes.shp"
-with arcpy.da.UpdateCursor(sanitary_manholes, fields) as cursor:
-    for row in cursor:
-        pwid: str = generate(unique, 32)
-        row[0] = pwid
-        pwname: str = generate(unique, 64)
-        row[1] = pwname
-        cursor.updateRow(row)
+except:
+    logging.error(sys.exc_info()[1])

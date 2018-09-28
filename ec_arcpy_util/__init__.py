@@ -6,7 +6,7 @@ import socket
 import arcpy
 
 
-def sde_workspace(_hostname=None):
+def sde_workspace_via_host(_hostname=None):
     workspace = None
 
     if _hostname is None:
@@ -21,6 +21,14 @@ def sde_workspace(_hostname=None):
         workspace = \
             r"C:\\Users\\spowell\\AppData\\Roaming\\ESRI\\" \
             r"Desktop10.3\\ArcCatalog\\black-charolais.com.sde"
+    return (workspace)
+
+#
+# this method is redundant, but hope to find a way to validate workspace before returning
+#
+def sde_workspace(_workspace=None):
+    workspace = None
+    workspace = _workspace
     return (workspace)
 
 

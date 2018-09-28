@@ -828,7 +828,7 @@ def load_incode_addresses():
 
         prefixes = get_all_street_prefix_alias()
         reader = None
-        workspace = ec_arcpy_util.sde_workspace()
+        workspace = ec_arcpy_util.sde_workspace_via_host()
         arcpy.env.workspace = workspace
         listDatasets = arcpy.ListDatasets("", "Feature")
         # for dataset in listDatasets:
@@ -946,7 +946,7 @@ def load_parcel_addresses():
     prefixes = get_all_street_prefix_alias()
 
     try:
-        workspace = ec_arcpy_util.sde_workspace()
+        workspace = ec_arcpy_util.sde_workspace_via_host()
         arcpy.env.workspace = workspace
         arcpy.AcceptConnections(workspace, False)
         arcpy.DisconnectUser(workspace, "ALL")
@@ -1073,7 +1073,7 @@ def load_e911_addresses(_gdb):
     con = None
     try:
 
-        workspace = ec_arcpy_util.sde_workspace()
+        workspace = ec_arcpy_util.sde_workspace_via_host()
         arcpy.env.workspace = workspace
         arcpy.AcceptConnections(workspace, False)
         arcpy.DisconnectUser(workspace, "ALL")
@@ -1182,7 +1182,7 @@ def load_new_hgac_e911_addresses(_gdb_database):
 
     try:
 
-        workspace = ec_arcpy_util.sde_workspace()
+        workspace = ec_arcpy_util.sde_workspace_via_host()
         arcpy.env.workspace = workspace
         arcpy.AcceptConnections(workspace, False)
         arcpy.DisconnectUser(workspace, "ALL")
