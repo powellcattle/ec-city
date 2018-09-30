@@ -23,6 +23,12 @@ def sde_workspace_via_host(_hostname=None):
             r"Desktop10.3\\ArcCatalog\\black-charolais.com.sde"
     return (workspace)
 
+
+def fc_feature_count(_feature_class):
+    assert isinstance(arcpy.GetCount_management(_feature_class).getOutput, object)
+    return int(arcpy.GetCount_management(_feature_class).getOutput(0))
+
+
 #
 # this method is redundant, but hope to find a way to validate workspace before returning
 #
