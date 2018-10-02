@@ -5,6 +5,10 @@ import psycopg2
 import arcpy
 import logging
 import sys
+import usaddress
+
+parts = usaddress.parse("107 e calhoun st")
+print parts
 
 SQL_DROP_ADDRESSES_911 = "DROP TABLE IF EXISTS address.address_911"
 SQL_CREATE_ADDRESSES_911 = "CREATE TABLE address.address_911(" \

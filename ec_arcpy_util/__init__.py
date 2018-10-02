@@ -14,9 +14,8 @@ def sde_workspace_via_host(_hostname=None):
     if _hostname == "gis-development":
         workspace = r"C:\\Users\\sde\\AppData\\Roaming\\ESRI\\" \
                     r"Desktop10.3\\ArcCatalog\\dev.cityofelcampo.org.sde"
-    elif _hostname == "gis":
-        workspace = r"C:\\Users\\spowell\\AppData\\Roaming\\ESRI\Desktop10.3\\" \
-                    r"ArcCatalog\\powellcattle.com.sde"
+    elif _hostname == "home-gis":
+        workspace = r"C:\\Users\\spowell\\AppData\\Roaming\\Esri\\Desktop10.6\\ArcCatalog\\localhost.sde"
     else:
         workspace = \
             r"C:\\Users\\spowell\\AppData\\Roaming\\ESRI\\" \

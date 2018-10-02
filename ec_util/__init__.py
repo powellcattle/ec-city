@@ -68,6 +68,10 @@ def unzip_CAD(_path, _file_name):
             fh.close();
 
 
+def concat_to_os_path(_path, _file):
+    return os.path.join(_path, _file)
+
+
 def to_pos_int_or_none(_str):
     """
     Converts string value to an int

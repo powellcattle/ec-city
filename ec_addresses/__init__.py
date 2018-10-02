@@ -13,6 +13,7 @@ import psycopg2
 import ec_arcpy_util
 import ec_hashmap
 import ec_util
+import ec_psql_util
 
 
 class Address:
@@ -35,7 +36,6 @@ class Address:
         self.unit = None
 
     def __str__(self):
-
         to_str = None
 
         if self.house_number:
@@ -68,6 +68,85 @@ class Address:
         return (to_str)
 
 
+def load_starmap_streets(_from_workspace):
+    con = None
+    try:
+        to_workspace = ec_arcpy_util.sde_workspace_via_host()
+        arcpy.env.workspace = to_workspace
+        arcpy.AcceptConnections(to_workspace, False)
+        arcpy.DisconnectUser(to_workspace, "ALL")
+        #
+        # NAD_1983_StatePlane_Texas_South_Central_FIPS_4204_Feet
+        #
+        sr_2278 = arcpy.SpatialReference(2278)
+
+        if not arcpy.Exists("HGAC"):
+            arcpy.CreateFeatureDataset_management(to_workspace, "HGAC", sr_2278)
+
+        if arcpy.Exists("starmap"):
+            arcpy.Delete_management("starmap")
+        #
+        # Define Fields for starmap
+        arcpy.CreateFeatureclass_management(to_workspace, "HGAC/starmap", "POLYLINE", "", "", "", sr_2278)
+        arcpy.AddField_management("starmap", "st_name", "TEXT", "", "", 50, "Street Name", "NULLABLE")
+        arcpy.AddField_management("starmap", "st_fullname", "TEXT", "", "", 50, "Full Street Name", "NULLABLE")
+        arcpy.AddField_management("starmap", "st_type", "TEXT", "", "", 4, "Street Type", "NULLABLE")
+        arcpy.AddField_management("starmap", "from_addr_l", "LONG", "", "", "", "From Left Block #", "NON_NULLABLE")
+        arcpy.AddField_management("starmap", "to_addr_l", "LONG", "", "", "", "To Left Block #", "NON_NULLABLE")
+        arcpy.AddField_management("starmap", "from_addr_r", "LONG", "", "", "", "From Right Block #", "NON_NULLABLE")
+        arcpy.AddField_management("starmap", "to_addr_r", "LONG", "", "", "", "To Right Block #", "NON_NULLABLE")
+        arcpy.AddField_management("starmap", "source", "TEXT", "", "", 40, "Data Source", "NON_NULLABLE")
+        arcpy.AddField_management("starmap", "global_id", "GUID", "", "", 10, "Global ID", "NON_NULLABLE")
+        fields_starmap = ["st_name", "st_fullname", "st_type", "from_addr_l", "to_addr_l", "from_addr_r",
+                          "to_addr_r", "source", "global_id", "SHAPE@"]
+
+        if not arcpy.Describe("HGAC").isVersioned:
+            arcpy.RegisterAsVersioned_management("HGAC", "EDITS_TO_BASE")
+        edit = arcpy.da.Editor(to_workspace)
+        edit.startEditing(with_undo=False, multiuser_mode=True)
+        edit.startOperation()
+
+        insert_cursor = arcpy.da.InsertCursor("hgac/starmap", fields_starmap)
+
+        from_fields = ["STREETNAME", "FULL_NAME", "ST_POSTYP", "FromAddr_L", "ToAddr_L", "FromAddr_R", "ToAddr_R",
+                       "SOURCE", "GLOBALID", "SHAPE@"]
+        from_fc = _from_workspace + os.sep + "hgac_starmap"
+
+        counter = 0
+        with arcpy.da.SearchCursor(from_fc, from_fields) as cursor:
+            for row in cursor:
+                name = ec_util.to_upper_or_none(row[0])
+                full_name = ec_util.to_upper_or_none(row[1])
+                type = ec_util.to_upper_or_none(row[2])
+                from_addr_l = ec_util.to_pos_int_or_none(row[3])
+                to_addr_l = ec_util.to_pos_int_or_none(row[4])
+                from_addr_r = ec_util.to_pos_int_or_none(row[5])
+                to_addr_r = ec_util.to_pos_int_or_none(row[6])
+                source = ec_util.to_upper_or_none(row[7])
+                global_id = row[8]
+                shape = row[9]
+                insert_cursor.insertRow(
+                    (name, full_name, type, from_addr_l, to_addr_l, from_addr_r, to_addr_r, source,
+                     global_id, shape))
+
+    except psycopg2.DatabaseError as e:
+        if con:
+            con.rollback()
+        logging.error(e)
+
+    except:
+        logging.error(sys.exc_info()[1])
+
+    finally:
+        if con:
+            con.commit()
+            con.close()
+        if edit:
+            edit.stopOperation()
+            logging.info("Saving changes for HGAC Starmap import")
+            edit.stopEditing(save_changes=True)
+
+
 def load_unique_street_types():
     con = None
     SQL_INSERT = "INSERT INTO address.unique_street_types(street_type) VALUES (%s)"
@@ -80,7 +159,8 @@ def load_unique_street_types():
     reader = None
 
     try:
-        con = ec_util.psql_connection()
+        con = ec_psql_util.psql_connection(_database="ec", _host="localhost", _user="sde", _password="sde", _port=5432,
+                                           _read_only=False)
 
         cur = con.cursor()
         cur.execute(SQL_DROP)
@@ -124,7 +204,8 @@ def load_unique_street_type_aliases():
     reader = None
 
     try:
-        con = ec_util.psql_connection()
+        con = ec_psql_util.psql_connection(_database="ec", _host="localhost", _user="sde", _password="sde", _port=5432,
+                                           _read_only=False)
 
         cur = con.cursor()
         cur.execute(SQL_DROP)
@@ -169,7 +250,8 @@ def load_unique_prefix_aliases():
     reader = None
 
     try:
-        con = ec_util.psql_connection()
+        con = ec_psql_util.psql_connection(_database="ec", _host="localhost", _user="sde", _password="sde", _port=5432,
+                                           _read_only=False)
 
         cur = con.cursor()
         cur.execute(SQL_DROP)
@@ -214,7 +296,8 @@ def load_unique_street_name_aliases():
     reader = None
 
     try:
-        con = ec_util.psql_connection()
+        con = ec_psql_util.psql_connection(_database="ec", _host="localhost", _user="sde", _password="sde", _port=5432,
+                                           _read_only=False)
 
         cur = con.cursor()
         cur.execute(SQL_DROP)
@@ -309,7 +392,8 @@ def load_unique_units():
     reader = None
 
     try:
-        con = ec_util.psql_connection()
+        con = ec_psql_util.psql_connection(_database="ec", _host="localhost", _user="sde", _password="sde", _port=5432,
+                                           _read_only=False)
 
         cur = con.cursor()
         cur.execute(SQL_DROP)
@@ -354,7 +438,8 @@ def load_exceptions():
     reader = None
 
     try:
-        con = ec_util.psql_connection()
+        con = ec_psql_util.psql_connection(_database="ec", _host="localhost", _user="sde", _password="sde", _port=5432,
+                                           _read_only=False)
 
         cur = con.cursor()
         cur.execute(SQL_DROP)
@@ -397,7 +482,8 @@ def load_unique_prefixes():
     reader = None
 
     try:
-        con = ec_util.psql_connection()
+        con = ec_psql_util.psql_connection(_database="ec", _host="localhost", _user="sde", _password="sde", _port=5432,
+                                           _read_only=False)
 
         cur = con.cursor()
         cur.execute(SQL_DROP)
@@ -608,7 +694,8 @@ def load_unique_street_names():
     reader = None
 
     try:
-        con = ec_util.psql_connection()
+        con = ec_psql_util.psql_connection(_database="ec", _host="localhost", _user="sde", _password="sde", _port=5432,
+                                           _read_only=False)
 
         cur = con.cursor()
         cur.execute(SQL_DROP_NAMES)
@@ -847,8 +934,6 @@ def load_incode_addresses():
         arcpy.DisconnectUser(workspace, "ALL")
         # arcpy.RegisterAsVersioned_management("Address", "EDITS_TO_BASE")
 
-
-
         if arcpy.Exists(workspace_meter_address):
             arcpy.Delete_management(workspace_meter_address)
         arcpy.CreateFeatureclass_management(workspace + os.sep + os.sep + "Address", "meter_address", "POINT", "", "",
@@ -875,7 +960,6 @@ def load_incode_addresses():
         writer = csv.writer(out_file, delimiter="\t")
 
         with open('../data/water_accounts.csv', 'r+b') as csvfile:
-
             reader = csv.reader(csvfile, delimiter='\t', quotechar='"')
             # next(reader, None)
 
@@ -939,61 +1023,55 @@ def load_incode_addresses():
             edit.stopEditing(save_changes=True)
 
 
-def load_parcel_addresses():
+def load_parcel_addresses(_from_shapefile):
     con = None
     edit = None
     out_file = None
     prefixes = get_all_street_prefix_alias()
 
     try:
-        workspace = ec_arcpy_util.sde_workspace_via_host()
-        arcpy.env.workspace = workspace
-        arcpy.AcceptConnections(workspace, False)
-        arcpy.DisconnectUser(workspace, "ALL")
+        to_workspace = ec_arcpy_util.sde_workspace_via_host()
+        arcpy.env.workspace = to_workspace
+        arcpy.AcceptConnections(to_workspace, False)
+        arcpy.DisconnectUser(to_workspace, "ALL")
 
-        workspace_parcel_address = workspace + os.sep + os.sep + "Address" + os.sep + os.sep + "parcel_address"
-        workspace_parcel_county = workspace + os.sep + os.sep + "Boundary" + os.sep + os.sep + "county_parcel_owner"
+        from_workspace = _from_shapefile
+        workspace_parcel_county = to_workspace + os.sep + os.sep + "Boundary" + os.sep + os.sep + "county_parcel_owner"
         sr_2278 = arcpy.SpatialReference(2278)
 
-        if arcpy.Exists(workspace_parcel_address):
-            arcpy.Delete_management(workspace_parcel_address)
-        arcpy.CreateFeatureclass_management(workspace + os.sep + os.sep + "Address", "parcel_address", "POINT", "", "",
-                                            "", sr_2278)
-        arcpy.AddField_management(workspace_parcel_address, "prop_id", "TEXT", "", "", "10", "Property ID",
+        if arcpy.Exists("WhartonCAD"):
+            arcpy.Delete_management("WhartonCAD")
+        arcpy.CreateFeatureclass_management(to_workspace, "WhartonCAD/parcel_address", "POINT", "", "","", sr_2278)
+        arcpy.AddField_management(from_workspace, "prop_id", "TEXT", "", "", "10", "Property ID","NON_NULLABLE")
+        arcpy.AddField_management(from_workspace, "add_number", "LONG", "", "", "", "House Number",
                                   "NON_NULLABLE")
-        arcpy.AddField_management(workspace_parcel_address, "house_number", "SHORT", "", "", "", "House Number",
+        arcpy.AddField_management(from_workspace, "st_prefix", "TEXT", "", "", 6, "Prefix", "NULLABLE")
+        arcpy.AddField_management(from_workspace, "st_name", "TEXT", "", "", 50, "Street Name",
                                   "NON_NULLABLE")
-        arcpy.AddField_management(workspace_parcel_address, "prefix", "TEXT", "", "", 6, "Account", "NULLABLE")
-        arcpy.AddField_management(workspace_parcel_address, "street_name", "TEXT", "", "", 50, "Street Name",
-                                  "NON_NULLABLE")
-        arcpy.AddField_management(workspace_parcel_address, "suffix", "TEXT", "", "", 10, "Suffix", "NULLABLE")
-        arcpy.AddField_management(workspace_parcel_address, "street_type", "TEXT", "", "", 4, "Street Type", "NULLABLE")
-        arcpy.AddField_management(workspace_parcel_address, "secondary_name", "TEXT", "", "", 10, "Secondary Name",
+        arcpy.AddField_management(from_workspace, "st_type", "TEXT", "", "", 4, "Street Type", "NULLABLE")
+        arcpy.AddField_management(from_workspace, "add_unit", "TEXT", "", "", 20, "Unit",
                                   "NULLABLE")
-        arcpy.AddField_management(workspace_parcel_address, "city", "TEXT", "", "", 25, "City", "NON_NULLABLE")
-        arcpy.AddField_management(workspace_parcel_address, "state", "TEXT", "", "", 2, "State", "NON_NULLABLE")
-        arcpy.AddField_management(workspace_parcel_address, "zip", "TEXT", "", "", 5, "ZIP", "NON_NULLABLE")
-        arcpy.RegisterAsVersioned_management("Address", "EDITS_TO_BASE")
+        arcpy.AddField_management(from_workspace, "source", "TEXT", "", "", 40, "Data Source", "NON_NULLABLE")
 
-        fields_parcel_address = ["prop_id", "house_number", "prefix", "street_name", "suffix", "street_type",
-                                 "secondary_name",
-                                 "city", "state", "zip", "OID@", "SHAPE@"]
-        fields_parcel_wharton = ["situs_num", "situs_stre", "situs_st_1", "situs_st_2", "situs_city", "prop_id", "OID@",
+        if not arcpy.Describe("HGAC").isVersioned:
+            arcpy.RegisterAsVersioned_management("HGAC", "EDITS_TO_BASE")
+
+        to_fields = ["prop_id", "add_number", "st_prefix", "st_name", "st_type", "add_unit","source", "SHAPE@"]
+        from_fields = ["prop_id", "situs_stre", "situs_st_1", "situs_st_2", "situs_city", "prop_id", "OID@",
                                  "SHAPE@"]
         street_types = get_all_street_types()
         street_type_aliases = get_all_street_type_aliases()
 
-        edit = arcpy.da.Editor(workspace)
+        edit = arcpy.da.Editor(to_workspace)
         edit.startEditing(with_undo=False, multiuser_mode=True)
         edit.startOperation()
 
-        insert_cursor = arcpy.da.InsertCursor(workspace_parcel_address, fields_parcel_address)
+        insert_cursor = arcpy.da.InsertCursor(to_workspace, to_fields)
 
         # where clause to restrict to EL CAMPO
         where_clause = "\"prop_id\" > 0 AND \"situs_num\" IS NOT NULL AND \"situs_num\" != '0' AND \"situs_city\" = 'EL CAMPO'"
         # where_clause = "\"prop_id\" > 0 AND \"situs_num\" IS NOT NULL AND \"situs_num\" != '0' AND \"situs_city\" = 'EL CAMPO' AND \"situs_st_1\" = 'MICHAEL'"
-        with arcpy.da.SearchCursor(workspace_parcel_county, fields_parcel_wharton, where_clause) as cursor:
-
+        with arcpy.da.SearchCursor(workspace_parcel_county, from_fields, where_clause) as cursor:
             for row in cursor:
                 house_number = row[0]
                 prefix = None
@@ -1069,51 +1147,51 @@ def load_parcel_addresses():
             edit.stopEditing(save_changes=True)
 
 
-def load_e911_addresses(_gdb):
+def load_e911_addresses(_from_workspace):
     con = None
     try:
-
-        workspace = ec_arcpy_util.sde_workspace_via_host()
-        arcpy.env.workspace = workspace
-        arcpy.AcceptConnections(workspace, False)
-        arcpy.DisconnectUser(workspace, "ALL")
-
-        workspace_e911_address = workspace + os.sep + os.sep + "Address" + os.sep + os.sep + "e911_address"
+        to_workspace = ec_arcpy_util.sde_workspace_via_host()
+        arcpy.env.workspace = to_workspace
+        arcpy.AcceptConnections(to_workspace, False)
+        arcpy.DisconnectUser(to_workspace, "ALL")
+        #
+        # NAD_1983_StatePlane_Texas_South_Central_FIPS_4204_Feet
+        #
         sr_2278 = arcpy.SpatialReference(2278)
 
-        if arcpy.Exists(workspace_e911_address):
-            arcpy.Delete_management(workspace_e911_address)
-        arcpy.CreateFeatureclass_management(workspace + os.sep + os.sep + "Address", "e911_address", "POINT", "", "",
-                                            "", sr_2278)
-        arcpy.AddField_management(workspace_e911_address, "house_number", "LONG", "", "", "", "House Number",
-                                  "NON_NULLABLE")
-        arcpy.AddField_management(workspace_e911_address, "prefix", "TEXT", "", "", 6, "Prefix", "NULLABLE")
-        arcpy.AddField_management(workspace_e911_address, "street_name", "TEXT", "", "", 50, "Street Name",
-                                  "NON_NULLABLE")
-        arcpy.AddField_management(workspace_e911_address, "suffix", "TEXT", "", "", 10, "Suffix", "NULLABLE")
-        arcpy.AddField_management(workspace_e911_address, "street_type", "TEXT", "", "", 4, "Street Type", "NULLABLE")
-        arcpy.AddField_management(workspace_e911_address, "secondary_name", "TEXT", "", "", 50, "Unit",
-                                  "NULLABLE")
-        arcpy.AddField_management(workspace_e911_address, "city", "TEXT", "", "", 25, "City", "NON_NULLABLE")
-        arcpy.AddField_management(workspace_e911_address, "state", "TEXT", "", "", 2, "State", "NON_NULLABLE")
-        arcpy.AddField_management(workspace_e911_address, "zip", "TEXT", "", "", 5, "ZIP", "NON_NULLABLE")
-        arcpy.RegisterAsVersioned_management("Address", "EDITS_TO_BASE")
+        if not arcpy.Exists("HGAC"):
+            arcpy.CreateFeatureDataset_management(to_workspace, "HGAC", sr_2278)
 
-        fields_e911_address = ["house_number", "prefix", "street_name", "suffix", "street_type",
-                               "secondary_name",
-                               "city", "state", "zip", "SHAPE@"]
+        if arcpy.Exists("hgac911_address"):
+            arcpy.Delete_management("hgac911_address")
+        arcpy.CreateFeatureclass_management(to_workspace, "hgac/hgac911_address", "POINT", "", "", "", sr_2278)
+        arcpy.AddField_management("hgac911_address", "add_number", "LONG", "", "", "", "House Number", "NON_NULLABLE")
+        arcpy.AddField_management("hgac911_address", "st_prefix", "TEXT", "", "", 6, "Prefix", "NULLABLE")
+        arcpy.AddField_management("hgac911_address", "st_name", "TEXT", "", "", 50, "Street Name", "NON_NULLABLE")
+        arcpy.AddField_management("hgac911_address", "st_type", "TEXT", "", "", 4, "Street Type", "NULLABLE")
+        arcpy.AddField_management("hgac911_address", "add_unit", "TEXT", "", "", 20, "Unit", "NULLABLE")
+        arcpy.AddField_management("hgac911_address", "st_fullname", "TEXT", "", "", 50, "Full Street Name",
+                                  "NON_NULLABLE")
+        arcpy.AddField_management("hgac911_address", "source", "TEXT", "", "", 40, "Data Source", "NON_NULLABLE")
+        arcpy.AddField_management("hgac911_address", "global_id", "GUID", "", "", 10, "Global ID", "NON_NULLABLE")
+        fields_e911_address = ["add_number", "st_prefix", "st_name", "st_type", "add_unit", "st_fullname",
+                               "source", "global_id", "SHAPE@"]
 
-        edit = arcpy.da.Editor(workspace)
+        if not arcpy.Describe("HGAC").isVersioned:
+            arcpy.RegisterAsVersioned_management("HGAC", "EDITS_TO_BASE")
+
+        edit = arcpy.da.Editor(to_workspace)
         edit.startEditing(with_undo=False, multiuser_mode=True)
         edit.startOperation()
 
-        insert_cursor = arcpy.da.InsertCursor(workspace_e911_address, fields_e911_address)
+        insert_cursor = arcpy.da.InsertCursor("hgac/hgac911_address", fields_e911_address)
 
-        fc = _gdb + "/hgac911_address"
-        fc_fields = ["ADD_NUMBER", "PREFIX", "NAME", "ST_TYPE", "SUFFIX", "ADD_UNIT", "CITY", "POSTAL", "ZIP", "SHAPE@"]
+        from_fields = ["ADD_NUMBER", "ST_PREDIR", "STREETNAME", "ST_POSTYP", "UNIT", "SOURCE", "FULL_ADDR", "GLOBALID",
+                       "SHAPE@"]
+        fc = _from_workspace + os.sep + "hgac911_address"
 
         counter = 0
-        with arcpy.da.SearchCursor(fc, fc_fields) as cursor:
+        with arcpy.da.SearchCursor(fc, from_fields) as cursor:
             for row in cursor:
                 house_number = ec_util.to_pos_int_or_none(row[0])
                 if house_number is None:
@@ -1124,39 +1202,19 @@ def load_e911_addresses(_gdb):
                 if name is None:
                     continue
                 type = ec_util.to_upper_or_none(row[3])
-                suffix = ec_util.to_upper_or_none(row[4])
-                unit = ec_util.to_upper_or_none(row[5])
-                if unit is not None:
-                    unit = "# " + unit
-                city = ec_util.to_upper_or_none(row[6])
-                postal = ec_util.to_upper_or_none(row[7])
-                zip = ec_util.to_upper_or_none(row[8])
-                point = row[9]
-                if city is None:
-                    city = postal
-                insert_cursor.insertRow((house_number, prefix, name, suffix, type, unit, city, "TX", zip, point))
+                # suffix = ec_util.to_upper_or_none(row[4])
+                unit = ec_util.to_upper_or_none(row[4])
+                source = ec_util.to_upper_or_none(row[5])
+                full_name = ec_util.to_upper_or_none(row[6])
+                # city = ec_util.to_upper_or_none(row[6])
+                # postal = ec_util.to_upper_or_none(row[7])
+                # zip = ec_util.to_upper_or_none(row[8])
+                global_id = row[7]
+                point = row[8]
 
-
-                # con = ec_util.psql_connection()
-                # cur = con.cursor()
-                # cur.execute(
-                #     "SELECT add_number, prefix, name, st_type, suffix, add_unit, ST_X(geom) AS X, ST_Y(geom) AS Y FROM elc.street.e911_address_import AS e WHERE "
-                #     "e.name IS NOT NULL AND e.geom IS NOT NULL AND e.add_number IS NOT NULL")
-                # rows = cur.fetchall()
-                #
-                # for row in rows:
-                #     house_number = row[0]
-                #     prefix = row[1]
-                #     name = row[2]
-                #     type = row[3]
-                #     suffix = row[4]
-                #     if row[5]:
-                #         unit = "#" + row[5]
-                #     else:
-                #         unit = None
-                #     point = arcpy.Point(row[6], row[7])
-                #     insert_cursor.insertRow((house_number, prefix, name, suffix, type, unit, "EL CAMPO", "TX", "77437", point))
-
+                # if city is None:
+                #     city = postal
+                insert_cursor.insertRow((house_number, prefix, name, type, unit, full_name, source, global_id, point))
 
     except psycopg2.DatabaseError as e:
         if con:
@@ -1172,7 +1230,7 @@ def load_e911_addresses(_gdb):
             con.close()
         if edit:
             edit.stopOperation()
-            logging.info("Saving changes for E911 import")
+            logging.info("Saving changes for HGAC address import")
             edit.stopEditing(save_changes=True)
 
 
@@ -1181,7 +1239,6 @@ def load_new_hgac_e911_addresses(_gdb_database):
     fc_new_hgac_e911 = _gdb_database
 
     try:
-
         workspace = ec_arcpy_util.sde_workspace_via_host()
         arcpy.env.workspace = workspace
         arcpy.AcceptConnections(workspace, False)
