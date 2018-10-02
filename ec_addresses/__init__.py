@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+
 __author__ = 'spowell'
 
 import csv
@@ -15,6 +16,24 @@ import ec_hashmap
 import ec_psql_util
 import ec_util
 
+SQL_DROP_ADDRESSES_911 = "DROP TABLE IF EXISTS address.address_911"
+SQL_CREATE_ADDRESSES_911 = "CREATE TABLE address.address_911(" \
+                           "address_911_id SERIAL4 NOT NULL, " \
+                           "add_number INT NOT NULL, " \
+                           "st_prefix CHARACTER(1) NULL, " \
+                           "st_name VARCHAR(100) NOT NULL, " \
+                           "st_suffix VARCHAR(5) NULL, " \
+                           "st_type VARCHAR(10) NULL, " \
+                           "add_unit VARCHAR(20) NULL, " \
+                           "add_full VARCHAR(50) NOT NULL, " \
+                           "add_source VARCHAR(20) NOT NULL, " \
+                           "add_zip CHARACTER(5) NULL, " \
+                           "add_city VARCHAR(25) NULL, " \
+                           "fuzzy CHARACTER(4) NULL, " \
+                           "CONSTRAINT unique_address_911_pkey PRIMARY KEY (address_911_id), " \
+                           "CONSTRAINT address_911_name_idx UNIQUE (add_full, add_unit))"
+
+
 
 class Address:
     add_number = None
@@ -23,22 +42,26 @@ class Address:
     st_type = None
     st_suffix = None
     add_unit = None
+    add_zip = None
+    add_city = None
     unit_des_single = ['APT', 'FRNT', 'LBBY', 'LOWR', 'OFC', 'PH', 'REAR', 'SIDE', 'UPPR']
     unit_des_second = ['APT', 'BLDG', 'DEPT', 'FL', 'HNGR', 'KEY', 'LOT', 'PIER', 'RM' 'SLIP', 'SPC', 'STOP', 'STE',
                        'TRLR',
                        'UNIT']
 
-    def __init__(self, _add_number, _st_name, _st_type, _st_prefix=None, _st_suffix=None, _add_unit=None):
-        if _add_number:
-            self.add_number = int(_add_number)
-        if _st_prefix:
-            self.st_prefix = str(_st_prefix).strip().upper()
-        if _st_name:
-            self.st_name = str(_st_name).strip().upper()
-        if _st_type:
-            self.st_type = str(_st_type).strip().upper()
-        if _add_unit:
-            self.add_unit = str(_add_unit).strip().upper()
+    def __init__(self, add_number, st_prefix, st_name, st_type, st_suffix, add_unit, add_city, add_zip):
+        if add_number:
+            self.add_number = int(add_number)
+        if st_prefix:
+            self.st_prefix = str(st_prefix).strip().upper()
+        if st_name:
+            self.st_name = str(st_name).strip().upper()
+        if st_type:
+            self.st_type = str(st_type).strip().upper()
+        if st_suffix:
+            self.st_suffix = str(st_suffix).strip().upper()
+        if add_unit:
+            self.add_unit = str(add_unit).strip().upper()
             for sgl in self.unit_des_single:
                 if sgl in self.add_unit:
                     self.add_unit = sgl
@@ -51,6 +74,10 @@ class Address:
                         self.add_unit = dbl + ' ' + self.add_unit.split(" ", 2)[1]
                     return
             self.add_unit = '# ' + self.add_unit
+        if add_city:
+            self.add_city = str(add_city).strip().upper()
+        if add_zip:
+            self.add_zip = str(add_zip).strip()
 
     def __str__(self):
         to_str = None
@@ -104,6 +131,44 @@ class Address:
             _tmp_full = _tmp_full + ' ' + str(self.add_unit)
 
         return _tmp_full
+
+
+def insert_address(_con, _address, _source):
+    SQL_INSERT_ADDRESSES_911 = "INSERT INTO address.address_911(add_number, st_name, st_suffix, st_type, add_unit, add_full, add_source, add_zip, add_city, fuzzy) " \
+                               "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s)) ON CONFLICT ON " \
+                               "CONSTRAINT address_911_name_idx DO NOTHING"
+    try:
+        if _con is None:
+            logging.debug("Connection is None")
+            return
+
+        cur = _con.cursor()
+        cur.execute(SQL_INSERT_ADDRESSES_911, [_address.add_number, _address.st_name, _address.st_suffix, _address.st_type,
+                                 _address.add_unit, _address.full_name(), _source, _address.add_zip, _address.add_city,
+                                 _address.full_name()])
+
+    except psycopg2.DatabaseError as e:
+        logging.error(e)
+
+
+def setup_e911_addresses_tables(_con):
+    try:
+        cur = _con.cursor()
+        cur.execute(SQL_DROP_ADDRESSES_911)
+        cur.execute(SQL_CREATE_ADDRESSES_911)
+
+    except psycopg2.DatabaseError as e:
+        if _con:
+            _con.rollback()
+        logging.error(e)
+
+    except:
+        logging.error(sys.exc_info()[1])
+
+    finally:
+        if _con:
+            _con.commit()
+            _con.close()
 
 
 def load_starmap_streets(_from_workspace):
@@ -1192,11 +1257,16 @@ def load_parcel_addresses(_from_shapefile):
             edit.stopEditing(save_changes=True)
 
 
-def load_e911_addresses(_from_workspace):
-
+def load_e911_addresses(_from_workspace, _cleanup=True):
     try:
+        #
+        # drop/create table for schema address
+        psql_connection = ec_psql_util.psql_connection("ec", "sde", "sde", "localhost", "5432")
+        setup_e911_addresses_tables(psql_connection)
         psql_connection = ec_psql_util.psql_connection("ec", "sde", "sde", "localhost", "5432")
 
+        #
+        # arcgis stuff for multi-users
         to_workspace = ec_arcpy_util.sde_workspace_via_host()
         arcpy.env.workspace = to_workspace
         arcpy.AcceptConnections(to_workspace, False)
@@ -1206,71 +1276,86 @@ def load_e911_addresses(_from_workspace):
         #
         sr_2278 = arcpy.SpatialReference(2278)
 
+        #
+        # setup dataset and feature class
+        #
         if not arcpy.Exists("HGAC"):
             arcpy.CreateFeatureDataset_management(to_workspace, "HGAC", sr_2278)
 
         if arcpy.Exists("hgac911_address"):
             arcpy.Delete_management("hgac911_address")
-
-
-
         arcpy.CreateFeatureclass_management(to_workspace, "hgac/hgac911_address", "POINT", "", "", "", sr_2278)
         arcpy.AddField_management("hgac911_address", "add_number", "LONG", "", "", "", "House Number", "NON_NULLABLE")
         arcpy.AddField_management("hgac911_address", "st_prefix", "TEXT", "", "", 6, "Prefix", "NULLABLE")
         arcpy.AddField_management("hgac911_address", "st_name", "TEXT", "", "", 50, "Street Name", "NON_NULLABLE")
+        arcpy.AddField_management("hgac911_address", "st_suffix", "TEXT", "", "", 10, "Street Suffix", "NULLABLE")
         arcpy.AddField_management("hgac911_address", "st_type", "TEXT", "", "", 4, "Street Type", "NULLABLE")
         arcpy.AddField_management("hgac911_address", "add_unit", "TEXT", "", "", 20, "Unit", "NULLABLE")
-        arcpy.AddField_management("hgac911_address", "st_fullname", "TEXT", "", "", 50, "Full Street Name",
-                                  "NON_NULLABLE")
+        arcpy.AddField_management("hgac911_address", "st_fullname", "TEXT", "", "", 50, "Full Street Name", "NON_NULLABLE")
+        arcpy.AddField_management("hgac911_address", "add_zip", "TEXT", "", "", 5, "ZIP", "NULLABLE")
+        arcpy.AddField_management("hgac911_address", "add_city", "TEXT", "", "", 40, "City", "NULLABLE")
         arcpy.AddField_management("hgac911_address", "source", "TEXT", "", "", 40, "Data Source", "NON_NULLABLE")
         arcpy.AddField_management("hgac911_address", "global_id", "GUID", "", "", 10, "Global ID", "NON_NULLABLE")
-        fields_e911_address = ["add_number", "st_prefix", "st_name", "st_type", "add_unit", "st_fullname",
-                               "source", "global_id", "SHAPE@"]
+        #
+        # feature class field list
+        fields_e911_address = ["add_number", "st_prefix", "st_name", "st_suffix", "st_type", "add_unit", "st_fullname", "add_zip", "add_city", "source", "global_id", "SHAPE@"]
 
         if not arcpy.Describe("HGAC").isVersioned:
             arcpy.RegisterAsVersioned_management("HGAC", "EDITS_TO_BASE")
 
+        #
+        # start editing transaction
+        #
         edit = arcpy.da.Editor(to_workspace)
         edit.startEditing(with_undo=False, multiuser_mode=True)
         edit.startOperation()
-        arcpy.AddIndex_management("hgac911_address", ["st_fullname"], "hgac911_address_unique_idx","unique")
+        arcpy.AddIndex_management("hgac911_address", ["st_fullname", "add_unit"], "hgac911_fc_unq_idx", "unique")
 
+        #
+        #
         insert_cursor = arcpy.da.InsertCursor("hgac/hgac911_address", fields_e911_address)
 
-        from_fields = ["ADD_NUMBER", "ST_PREDIR", "STREETNAME", "ST_POSTYP", "UNIT", "SOURCE", "FULL_ADDR", "GLOBALID",
-                       "SHAPE@"]
-        fc = _from_workspace + os.sep + "hgac911_address"
+        from_fields = ["ADD_NUMBER", "ST_PREDIR", "STREETNAME", "ST_POSTYP", "UNIT", "POST_COMM", "POST_CODE", "SOURCE", "GLOBALID", "SHAPE@"]
+        from_fc = _from_workspace + os.sep + "hgac911_address"
 
-        counter = 0
-        with arcpy.da.SearchCursor(fc, from_fields) as cursor:
+        # Iterator over HGAC supplied feature class
+        with arcpy.da.SearchCursor(from_fc, from_fields) as cursor:
             for row in cursor:
-                house_number = ec_util.to_pos_int_or_none(row[0])
+                house_number = ec_util.to_pos_int_or_none(row[0])  # type: Optional[int]
+                #
+                # if no house number it can not be a valid address
                 if house_number is None:
                     continue
-
                 prefix = ec_util.to_upper_or_none(row[1])
-                name = ec_util.to_upper_or_none(row[2])
-                if name is None:
+                st_name = ec_util.to_upper_or_none(row[2])
+                #
+                # if no street name it can not be a valid address
+                if st_name is None:
                     continue
                 st_type = ec_util.to_upper_or_none(row[3])
                 unit = ec_util.to_upper_or_none(row[4])
-                source = ec_util.to_upper_or_none(row[5])
-                full_name = ec_util.to_upper_or_none(row[6])
-                global_id = row[7]
-                point = row[8]
+                add_city = ec_util.to_upper_or_none(row[5])
+                add_zip = ec_util.to_upper_or_none(row[6])
+                source = ec_util.to_upper_or_none(row[7])
+                global_id = row[8]
+                point = row[9]
 
-                address = Address(_add_number=house_number, _st_prefix=prefix, _st_name=name, _st_type=st_type,
-                                  _add_unit=unit)
-
-                insert_cursor.insertRow((address.add_number, address.st_prefix, address.st_name, address.st_type,
+                address = Address(add_number=house_number, st_prefix=prefix, st_name=st_name, st_type=st_type, st_suffix=None, add_unit=unit, add_city=add_city, add_zip=add_zip )
+                insert_cursor.insertRow((address.add_number,
+                                         address.st_prefix,
+                                         address.st_name,
+                                         address.st_suffix,
+                                         address.st_type,
                                          address.add_unit,
                                          address.full_name(),
+                                         address.add_zip,
+                                         address.add_city,
                                          source,
-                                         global_id, point))
+                                         global_id,
+                                         point))
 
-                # address = Address(_house_number=house_number,_prefix=prefix,_name=name,_type=st_type)
                 # Insert into Address schema
-                ec_psql_util.insert_address(psql_connection, address, source)
+                insert_address(psql_connection, address, source)
 
     except psycopg2.DatabaseError as e:
         if psql_connection:

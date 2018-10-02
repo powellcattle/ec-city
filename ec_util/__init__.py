@@ -120,6 +120,7 @@ def to_pos_long_or_none(_str):
 
 
 def to_upper_or_none(_str):
+    # type: (str) -> str
     """
     Converts string to uppercase
     :param _str: The string to be converted

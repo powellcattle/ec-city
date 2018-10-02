@@ -20,10 +20,14 @@ SQL_CREATE_ADDRESSES_911 = "CREATE TABLE address.address_911(" \
                            "add_unit VARCHAR(20) NULL, " \
                            "add_full VARCHAR(50) NOT NULL, " \
                            "add_source VARCHAR(20) NOT NULL, " \
-                           "fuzzy CHARACTER(4) NOT NULL, " \
+                           "add_zip CHARACTER(5) NULL, " \
+                           "add_city VARCHAR(25) NOT NULL, " \
+                           "fuzzy CHARACTER(4) NOT NULL " \
                            "CONSTRAINT unique_address_911_pkey PRIMARY KEY (address_911_id), " \
-                           "CONSTRAINT address_911_name_idx UNIQUE (add_full))"
-SQL_INSERT_ADDRESSES_911 = "INSERT INTO address.address_911(add_number, st_prefix, st_name, st_type, add_unit, add_full, add_source, fuzzy) VALUES (%s,%s,%s,%s,%s,%s,%s,soundex(%s)) ON CONFLICT ON CONSTRAINT address_911_name_idx DO NOTHING"
+                           "CONSTRAINT address_911_name_idx UNIQUE (add_full, add_unit))"
+SQL_INSERT_ADDRESSES_911 = "INSERT INTO address.address_911(add_number, st_prefix, st_name, st_type, add_unit, add_full, add_source, add_zip, add_city, fuzzy) " \
+                           "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s)) ON CONFLICT ON " \
+                           "CONSTRAINT address_911_name_idx DO NOTHING"
 
 logging.basicConfig(format="%(asctime)s %(levelname)s:%(message)s",
                     filename="test.log",
