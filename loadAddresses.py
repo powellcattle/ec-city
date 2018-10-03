@@ -2,12 +2,21 @@ __author__ = 'spowell'
 import logging
 
 import ec_addresses
+import sys
+import socket
 
 logging.basicConfig(format="%(asctime)s %(levelname)s:%(message)s",
                     filename="load_addresses.log",
                     filemode="w",
                     level=logging.DEBUG,
                     datefmt="%m/%d/%Y %I:%M:%S %p")
+
+if socket.gethostname() == 'gis':
+    hgac_gdb = "E:/dev/projects/ec-city/data/HGAC/oct1_2018/WhartonCo_Streets_Addresses_Oct1_2018/Wharton_HGAC_streets_addresses_Oct2018.gdb"
+else:
+    hgac_gdb = "D:/dev/projects/ec-city/data/HGAC/oct1_2018/WhartonCo_Streets_Addresses_Oct1_2018/Wharton_HGAC_streets_addresses_Oct2018.gdb"
+
+
 # ec_addresses.load_unique_street_names()
 # ec_addresses.load_unique_prefixes()
 # ec_addresses.load_exceptions()
@@ -22,9 +31,9 @@ logging.basicConfig(format="%(asctime)s %(levelname)s:%(message)s",
 # Parcel Data Load
 # ec_addresses.load_parcel_addresses("D:/dev/projects/ec-city/data/WhartonCAD/Ownership.shp")
 # Incode Data Load
-ec_addresses.load_incode_addresses()
+# ec_addresses.load_incode_addresses()
 # HGAC Data Load
-ec_addresses.load_e911_addresses("D:/dev/projects/ec-city/data/HGAC/oct1_2018/WhartonCo_Streets_Addresses_Oct1_2018/Wharton_HGAC_streets_addresses_Oct2018.gdb", True)
-ec_addresses.load_starmap_streets("D:/dev/projects/ec-city/data/HGAC/oct1_2018/WhartonCo_Streets_Addresses_Oct1_2018", True)
+ec_addresses.load_e911_addresses(hgac_gdb, True)
+ec_addresses.load_starmap_streets(hgac_gdb, True)
 
 
