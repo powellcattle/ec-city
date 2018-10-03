@@ -17,7 +17,7 @@ county_parcel_owner_old = r"Boundary\county_parcel_owner_old"
 cad_copy = r"Ownership"
 
 # obtain the SDE workspace based upon the hostname value
-arcpy.env.workspace = ec_arcpy_util.sde_workspace()
+arcpy.env.workspace = ec_arcpy_util.sde_workspace_via_host()
 logging.debug(arcpy.env.workspace)
 
 parcel_update_fields = ["prop_id", "cad_url"]

@@ -6,7 +6,7 @@ import socket
 import arcpy
 
 
-def sde_workspace(_hostname=None):
+def sde_workspace_via_host(_hostname=None):
     workspace = None
 
     if _hostname is None:
@@ -14,13 +14,26 @@ def sde_workspace(_hostname=None):
     if _hostname == "gis-development":
         workspace = r"C:\\Users\\sde\\AppData\\Roaming\\ESRI\\" \
                     r"Desktop10.3\\ArcCatalog\\dev.cityofelcampo.org.sde"
-    elif _hostname == "gis":
-        workspace = r"C:\\Users\\spowell\\AppData\\Roaming\\ESRI\Desktop10.3\\" \
-                    r"ArcCatalog\\powellcattle.com.sde"
+    elif _hostname == "home-gis":
+        workspace = r"C:\\Users\\spowell\\AppData\\Roaming\\Esri\\Desktop10.6\\ArcCatalog\\localhost.sde"
     else:
         workspace = \
             r"C:\\Users\\spowell\\AppData\\Roaming\\ESRI\\" \
             r"Desktop10.3\\ArcCatalog\\black-charolais.com.sde"
+    return (workspace)
+
+
+def fc_feature_count(_feature_class):
+    assert isinstance(arcpy.GetCount_management(_feature_class).getOutput, object)
+    return int(arcpy.GetCount_management(_feature_class).getOutput(0))
+
+
+#
+# this method is redundant, but hope to find a way to validate workspace before returning
+#
+def sde_workspace(_workspace=None):
+    workspace = None
+    workspace = _workspace
     return (workspace)
 
 

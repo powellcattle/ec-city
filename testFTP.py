@@ -12,8 +12,8 @@ logging.basicConfig(format="%(asctime)s %(levelname)s:%(message)s",
                     datefmt="%m/%d/%Y %I:%M:%S %p")
 # address = ec_addresses.get_street_name(None)
 #print("{} {} {}".format(address.prefix,address.name,address.type))
-workspace_meter = ec_arcpy_util.sde_workspace() + "\\\Water" + "\\\Meter"
-workspace_meter_address = ec_arcpy_util.sde_workspace() + "\\\Address" + "\\\meter_address"
+workspace_meter = ec_arcpy_util.sde_workspace_via_host() + "\\\Water" + "\\\Meter"
+workspace_meter_address = ec_arcpy_util.sde_workspace_via_host() + "\\\Address" + "\\\meter_address"
 fields_meter = ["incode_account", "OID@", "SHAPE@"]
 fields_meter_address = ["account", "house_number", "prefix", "street_name", "street_type", "secondary_name", "city",
                         "state", "zip", "OID@", "SHAPE@"]

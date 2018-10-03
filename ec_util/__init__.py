@@ -6,33 +6,6 @@ import os
 import socket
 import zipfile
 
-import psycopg2
-
-
-def psql_connection(_database=r"elc", _user=r"sde", _password=r"sde", _host=r"localhost", _port=r"5433"):
-    database = _database
-    user = _user
-    password = _password
-    host = _host
-    port = _port
-    db = None
-    if socket.gethostname() == "gis-development":
-        database = r"ec"
-    if socket.gethostname() == "gis":
-        port = r"5432"
-    if socket.gethostname() == "spowellLaptop":
-        port = r"5432"
-    try:
-        db = psycopg2.connect(database=database,
-                              user=user,
-                              password=password,
-                              host=host,
-                              port=port)
-    except psycopg2.Error as e:
-        logging.error(e)
-        return None
-    return db
-
 
 def sde_workspace():
     if socket.gethostname() == "gis-development":
@@ -95,6 +68,10 @@ def unzip_CAD(_path, _file_name):
             fh.close();
 
 
+def concat_to_os_path(_path, _file):
+    return os.path.join(_path, _file)
+
+
 def to_pos_int_or_none(_str):
     """
     Converts string value to an int
@@ -143,6 +120,7 @@ def to_pos_long_or_none(_str):
 
 
 def to_upper_or_none(_str):
+    # type: (str) -> str
     """
     Converts string to uppercase
     :param _str: The string to be converted
