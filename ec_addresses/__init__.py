@@ -54,7 +54,7 @@ class Address:
                     else:
                         self.add_unit = dbl + ' ' + self.add_unit.split(" ", 2)[1]
                     return
-            self.add_unit = '# ' + self.add_unit
+            self.add_unit = ' # ' + self.add_unit
         if add_city:
             self.add_city = str(add_city).strip().upper()
         if add_zip:
@@ -1025,7 +1025,7 @@ def get_unit(_street_types, _street_type_aliases, _unit):
 
 def load_incode_addresses():
     con = None
-    SQL_INSERT_INCODE = "INSERT INTO sde.incode_address(" \
+    SQL_INSERT_INCODE = "INSERT INTO address.incode_address(" \
                         "freeform_address," \
                         "occupant," \
                         "account_status," \
@@ -1039,8 +1039,8 @@ def load_incode_addresses():
                         "addr_state," \
                         "addr_zip_code)" \
                         "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
-    SQL_DROP_INCODE = "DROP TABLE IF EXISTS sde.incode_address CASCADE"
-    SQL_CREATE_INCODE = "CREATE TABLE sde.incode_address(" \
+    SQL_DROP_INCODE = "DROP TABLE IF EXISTS address.incode_address CASCADE"
+    SQL_CREATE_INCODE = "CREATE TABLE address.incode_address(" \
                         "id SERIAL NOT NULL," \
                         "freeform_address VARCHAR(100) NOT NULL," \
                         "occupant VARCHAR(100) NULL," \
