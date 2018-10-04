@@ -246,6 +246,8 @@ def load_starmap_streets(_from_workspace, _cleanup):
         #
         # Define Fields for starmap
         arcpy.CreateFeatureclass_management(to_workspace, "HGAC/starmap", "POLYLINE", "", "", "", sr_2278)
+        arcpy.AddField_management("starmap", "pwid", "TEXT", "", "", 20, "PubWorks Id", "NON_NULLABLE")
+        arcpy.AddField_management("starmap", "pwname", "TEXT", "", "", 50, "PubWorks Name", "NON_NULLABLE")
         arcpy.AddField_management("starmap", "st_name", "TEXT", "", "", 50, "Street Name", "NULLABLE")
         arcpy.AddField_management("starmap", "st_fullname", "TEXT", "", "", 50, "Full Street Name", "NULLABLE")
         arcpy.AddField_management("starmap", "st_type", "TEXT", "", "", 4, "Street Type", "NULLABLE")
@@ -255,7 +257,7 @@ def load_starmap_streets(_from_workspace, _cleanup):
         arcpy.AddField_management("starmap", "to_addr_r", "LONG", "", "", "", "To Right Block #", "NON_NULLABLE")
         arcpy.AddField_management("starmap", "source", "TEXT", "", "", 40, "Data Source", "NON_NULLABLE")
         arcpy.AddField_management("starmap", "global_id", "GUID", "", "", 10, "Global ID", "NON_NULLABLE")
-        fields_starmap = ["st_name", "st_fullname", "st_type", "from_addr_l", "to_addr_l", "from_addr_r","to_addr_r", "source", "global_id", "SHAPE@"]
+        fields_starmap = ["pwid", "pwname", "st_name", "st_fullname", "st_type", "from_addr_l", "to_addr_l", "from_addr_r","to_addr_r", "source", "global_id", "SHAPE@"]
 
         if not arcpy.Describe("HGAC").isVersioned:
             arcpy.RegisterAsVersioned_management("HGAC", "EDITS_TO_BASE")
@@ -269,19 +271,50 @@ def load_starmap_streets(_from_workspace, _cleanup):
         from_fc = _from_workspace + os.sep + "hgac_starmap"
 
         counter = 0
-        with arcpy.da.SearchCursor(from_fc, from_fields) as cursor:
+        last_name = None
+        blocks = []
+        with arcpy.da.SearchCursor(from_fc, from_fields, sql_clause=(None,"ORDER BY STREETNAME, FromAddr_L, FromAddr_R")) as cursor:
             for row in cursor:
                 name = ec_util.to_upper_or_none(row[0])
+                if not name:
+                    continue
                 full_name = ec_util.to_upper_or_none(row[1])
                 type = ec_util.to_upper_or_none(row[2])
                 from_addr_l = ec_util.to_pos_int_or_none(row[3])
                 to_addr_l = ec_util.to_pos_int_or_none(row[4])
                 from_addr_r = ec_util.to_pos_int_or_none(row[5])
                 to_addr_r = ec_util.to_pos_int_or_none(row[6])
+
+                if name == last_name or last_name is None:
+                    pwid = name + "-"  + str(counter)
+                    last_name = name
+                    counter = counter + 1
+                else:
+                    counter = 1
+                    pwid = name + "-" + str(counter)
+                    last_name = name
+                    counter = counter + 1
+
+                if from_addr_l:
+                    blocks.append(from_addr_l)
+                if to_addr_l:
+                    blocks.append(to_addr_l)
+                if from_addr_r:
+                    blocks.append(from_addr_r)
+                if to_addr_r:
+                    blocks.append(to_addr_r)
+                if len(blocks) > 2:
+                    pwname = str(min(blocks)) + "-" + str(max(blocks)) + " " + full_name
+                else:
+                    pwname = full_name
+                blocks = []
+
+
+
                 source = ec_util.to_upper_or_none(row[7])
                 global_id = row[8]
                 shape = row[9]
-                insert_cursor.insertRow((name, full_name, type, from_addr_l, to_addr_l, from_addr_r, to_addr_r, source, global_id, shape))
+                insert_cursor.insertRow((pwid, pwname, name, full_name, type, from_addr_l, to_addr_l, from_addr_r, to_addr_r, source, global_id, shape))
 
     except psycopg2.DatabaseError as e:
         # if con:
