@@ -7,7 +7,9 @@ import arcpy
 import ec_util
 import usaddress
 
-def read_address():
+
+
+def read_address(_incode_file_path):
     READ_ERROR = -1
     READ_OK = 1
     READ_NOT = 0
@@ -36,12 +38,12 @@ def read_address():
     edit = None
     new_meter_reading = None
     new_miu = None
-    incode_file = ec_util.concat_to_os_path("data\\incode", "TMP_PC2HOST.TMP")
+    incode_file = _incode_file_path
 
     try:
         open_file = open(incode_file)
         records = open_file.readlines()
-
+        address_list = []
         for rec in records:
             # miu
             miu = ec_util.to_pos_int_or_none(rec[28:38])
@@ -84,11 +86,11 @@ def read_address():
             # address
             address = ec_util.to_upper_or_none(rec[178:201])
 
-            address_list = usaddress.parse(address)
-            print address
-            print address_list
+            parsed_address = usaddress.parse(address)
+            address_list.append(parsed_address)
 
 
+        return address_list
 
     except IOError as e:
         logging.error(e)

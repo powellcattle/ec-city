@@ -8,18 +8,12 @@ import arcpy
 
 def sde_workspace_via_host(_hostname=None):
     workspace = None
-
     if _hostname is None:
         _hostname = socket.gethostname()
-    if _hostname == "gis-development":
-        workspace = r"C:\\Users\\sde\\AppData\\Roaming\\ESRI\\" \
-                    r"Desktop10.3\\ArcCatalog\\dev.cityofelcampo.org.sde"
+    if _hostname == "gis":
+        workspace = r"C:\Users\spowell\AppData\Roaming\ESRI\Desktop10.6\ArcCatalog\local.sde"
     elif _hostname == "home-gis":
         workspace = r"C:\\Users\\spowell\\AppData\\Roaming\\Esri\\Desktop10.6\\ArcCatalog\\localhost.sde"
-    else:
-        workspace = \
-            r"C:\\Users\\spowell\\AppData\\Roaming\\ESRI\\" \
-            r"Desktop10.3\\ArcCatalog\\black-charolais.com.sde"
     return (workspace)
 
 
