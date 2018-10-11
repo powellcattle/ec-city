@@ -41,6 +41,15 @@ def fieldExists(_feature_class, _field_name):
             return True
     return False
 
+def find_dataset(_to_find):
+    """
+    :rtype: object
+    """
+    datasets = arcpy.ListDatasets(_to_find)
+    for ds in datasets:
+        return ds
+    return None
+
 
 def dbCompress(inputWS):
     if all([arcpy.Exists(inputWS), arcpy.Compress_management(inputWS), arcpy.Exists(inputWS)]):
@@ -64,9 +73,9 @@ def CopyFeatureClasses(_fromdb, _todb):
         if arcpy.Exists(wk2 + os.sep + new_data) == False:
 
             arcpy.Copy_management(feature_class, wk2 + os.sep + new_data)
-            print "Completed copy on {0}".format(new_data)
+            print("Completed copy on {0}".format(new_data))
 
         else:
-            print "Feature class {0} already exists in the end_db so skipping".format(new_data)
+            print("Feature class {0} already exists in the end_db so skipping".format(new_data))
     # Clear memory
     del feature_class

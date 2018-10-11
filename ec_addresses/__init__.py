@@ -3,6 +3,7 @@
 
 __author__ = 'spowell'
 
+
 import csv
 import logging
 import os
@@ -124,9 +125,17 @@ def insert_address(_con, _address, _source):
             return
 
         cur = _con.cursor()
-        cur.execute(SQL_INSERT_ADDRESSES_911, [_address.add_number, _address.st_name, _address.st_suffix, _address.st_type,
-                                 _address.add_unit, _address.full_name(), _source, _address.add_zip, _address.add_city,
-                                 _address.full_name()])
+        cur.execute(SQL_INSERT_ADDRESSES_911, [
+            _address.add_number,
+            _address.st_name,
+            _address.st_suffix,
+            _address.st_type,
+            _address.add_unit,
+            _address.full_name(),
+            _source,
+            _address.add_zip,
+            _address.add_city,
+             _address.full_name()])
 
     except psycopg2.DatabaseError as e:
         logging.error(e)
@@ -225,6 +234,7 @@ def setup_incode_tables(_con):
 
 def load_starmap_streets(_from_workspace, _cleanup):
 
+    edit = None
     try:
 
         # psql_connection = ec_psql_util.psql_connection("ec", "sde", "sde", "localhost", "5432")
@@ -248,6 +258,7 @@ def load_starmap_streets(_from_workspace, _cleanup):
         arcpy.CreateFeatureclass_management(to_workspace, "HGAC/starmap", "POLYLINE", "", "", "", sr_2278)
         arcpy.AddField_management("starmap", "pwid", "TEXT", "", "", 20, "PubWorks Id", "NON_NULLABLE")
         arcpy.AddField_management("starmap", "pwname", "TEXT", "", "", 50, "PubWorks Name", "NON_NULLABLE")
+        arcpy.AddField_management("starmap", "st_predir", "TEXT", "", "", 9, "Street Prefix", "NULLABLE")
         arcpy.AddField_management("starmap", "st_name", "TEXT", "", "", 50, "Street Name", "NULLABLE")
         arcpy.AddField_management("starmap", "st_fullname", "TEXT", "", "", 50, "Full Street Name", "NULLABLE")
         arcpy.AddField_management("starmap", "st_type", "TEXT", "", "", 4, "Street Type", "NULLABLE")
@@ -257,7 +268,7 @@ def load_starmap_streets(_from_workspace, _cleanup):
         arcpy.AddField_management("starmap", "to_addr_r", "LONG", "", "", "", "To Right Block #", "NON_NULLABLE")
         arcpy.AddField_management("starmap", "source", "TEXT", "", "", 40, "Data Source", "NON_NULLABLE")
         arcpy.AddField_management("starmap", "global_id", "GUID", "", "", 10, "Global ID", "NON_NULLABLE")
-        fields_starmap = ["pwid", "pwname", "st_name", "st_fullname", "st_type", "from_addr_l", "to_addr_l", "from_addr_r","to_addr_r", "source", "global_id", "SHAPE@"]
+        fields_starmap = ["pwid", "pwname", "st_predir", "st_name", "st_fullname", "st_type", "from_addr_l", "to_addr_l", "from_addr_r","to_addr_r", "source", "global_id", "SHAPE@"]
 
         if not arcpy.Describe("HGAC").isVersioned:
             arcpy.RegisterAsVersioned_management("HGAC", "EDITS_TO_BASE")
@@ -267,33 +278,24 @@ def load_starmap_streets(_from_workspace, _cleanup):
 
         insert_cursor = arcpy.da.InsertCursor("hgac/starmap", fields_starmap)
 
-        from_fields = ["STREETNAME", "FULL_NAME", "ST_POSTYP", "FromAddr_L", "ToAddr_L", "FromAddr_R", "ToAddr_R","SOURCE", "GLOBALID", "SHAPE@"]
+        from_fields = ["St_PreDir","StreetName", "Full_Name", "ST_POSTYP", "FromAddr_L", "ToAddr_L", "FromAddr_R", "ToAddr_R","SOURCE", "GLOBALID", "SHAPE@", "OBJECTID"]
         from_fc = _from_workspace + os.sep + "hgac_starmap"
 
-        counter = 0
-        last_name = None
         blocks = []
         with arcpy.da.SearchCursor(from_fc, from_fields, sql_clause=(None,"ORDER BY STREETNAME, FromAddr_L, FromAddr_R")) as cursor:
             for row in cursor:
-                name = ec_util.to_upper_or_none(row[0])
+                str_predir = ec_util.to_upper_or_none(row[0])
+                name = ec_util.to_upper_or_none(row[1])
                 if not name:
                     continue
-                full_name = ec_util.to_upper_or_none(row[1])
-                type = ec_util.to_upper_or_none(row[2])
-                from_addr_l = ec_util.to_pos_int_or_none(row[3])
-                to_addr_l = ec_util.to_pos_int_or_none(row[4])
-                from_addr_r = ec_util.to_pos_int_or_none(row[5])
-                to_addr_r = ec_util.to_pos_int_or_none(row[6])
 
-                if name == last_name or last_name is None:
-                    pwid = name + "-"  + str(counter)
-                    last_name = name
-                    counter = counter + 1
-                else:
-                    counter = 1
-                    pwid = name + "-" + str(counter)
-                    last_name = name
-                    counter = counter + 1
+                full_name = ec_util.to_upper_or_none(row[2])
+                st_type = ec_util.to_upper_or_none(row[3])
+                from_addr_l = ec_util.to_pos_int_or_none(row[4])
+                to_addr_l = ec_util.to_pos_int_or_none(row[5])
+                from_addr_r = ec_util.to_pos_int_or_none(row[6])
+                to_addr_r = ec_util.to_pos_int_or_none(row[7])
+                pwid = name + "-"  + str(ec_util.to_pos_int_or_none(row[11]))
 
                 if from_addr_l:
                     blocks.append(from_addr_l)
@@ -309,12 +311,10 @@ def load_starmap_streets(_from_workspace, _cleanup):
                     pwname = full_name
                 blocks = []
 
-
-
-                source = ec_util.to_upper_or_none(row[7])
-                global_id = row[8]
-                shape = row[9]
-                insert_cursor.insertRow((pwid, pwname, name, full_name, type, from_addr_l, to_addr_l, from_addr_r, to_addr_r, source, global_id, shape))
+                source = ec_util.to_upper_or_none(row[8])
+                global_id = row[9]
+                shape = row[10]
+                insert_cursor.insertRow((pwid, pwname, str_predir, name, full_name, st_type, from_addr_l, to_addr_l, from_addr_r, to_addr_r, source, global_id, shape))
 
     except psycopg2.DatabaseError as e:
         # if con:
@@ -1375,9 +1375,6 @@ def load_e911_addresses(_from_workspace, _cleanup=True):
         arcpy.AddField_management("hgac911_address", "add_city", "TEXT", "", "", 40, "City", "NULLABLE")
         arcpy.AddField_management("hgac911_address", "source", "TEXT", "", "", 40, "Data Source", "NON_NULLABLE")
         arcpy.AddField_management("hgac911_address", "global_id", "GUID", "", "", 10, "Global ID", "NON_NULLABLE")
-        #
-        # feature class field list
-        fields_e911_address = ["add_number", "st_prefix", "st_name", "st_suffix", "st_type", "add_unit", "st_fullname", "add_zip", "add_city", "source", "global_id", "SHAPE@"]
 
         if not arcpy.Describe("HGAC").isVersioned:
             arcpy.RegisterAsVersioned_management("HGAC", "EDITS_TO_BASE")
@@ -1391,7 +1388,8 @@ def load_e911_addresses(_from_workspace, _cleanup=True):
         arcpy.AddIndex_management("hgac911_address", ["st_fullname", "add_unit"], "hgac911_fc_unq_idx", "unique")
 
         #
-        #
+        # feature class field list
+        fields_e911_address = ["add_number", "st_prefix", "st_name", "st_suffix", "st_type", "add_unit", "st_fullname", "add_zip", "add_city", "source", "global_id", "SHAPE@"]
         insert_cursor = arcpy.da.InsertCursor("hgac/hgac911_address", fields_e911_address)
 
         from_fields = ["ADD_NUMBER", "ST_PREDIR", "STREETNAME", "ST_POSTYP", "UNIT", "POST_COMM", "POST_CODE", "SOURCE", "GLOBALID", "SHAPE@"]
@@ -1400,7 +1398,7 @@ def load_e911_addresses(_from_workspace, _cleanup=True):
         # Iterator over HGAC supplied feature class
         with arcpy.da.SearchCursor(from_fc, from_fields) as cursor:
             for row in cursor:
-                house_number = ec_util.to_pos_int_or_none(row[0])  # type: Optional[int]
+                house_number = ec_util.to_pos_int_or_none(row[0])
                 #
                 # if no house number it can not be a valid address
                 if house_number is None:

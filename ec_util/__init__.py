@@ -183,14 +183,14 @@ def to_meter_size_domain(_int):
     :return: The long integer for the domain
     """
     if _int == 70 or _int == 7:
-        return 35L
+        return 35
     if _int == 11 or _int == 21 or _int == 22 or _int == 25 or _int == 71:
-        return 30L
+        return 30
     if _int == 66:
-        return 25L
+        return 25
     if _int == 60 or _int == 66:
-        return 20L
+        return 20
     if _int == 15 or _int == 45 or _int == 49 or _int == 53:
-        return 15L
+        return 15
     else:
-        return 10L
+        return 10

@@ -199,7 +199,7 @@ def load_incode_readings(_incode_path, _workspace):
             # incode account without the sequence xx-xxxx
             incode_account = ec_util.to_upper_or_none(rec[226:233])
             if incode_account == '12-2390' or incode_account == '07-0440' or incode_account == '02-1870':
-                print incode_account
+                print(incode_account)
             # compound meters
             meter_count = ec_util.to_pos_long_or_none(rec[244:245])
             # account_meter_count
@@ -208,7 +208,7 @@ def load_incode_readings(_incode_path, _workspace):
                 account_meter_count = full_incode_account + "-" + rec[243:245]
 
             if account_meter_count == '17-0930':
-                print full_incode_account
+                print(full_incode_account)
             # current meter number
             meter_number = ec_util.to_pos_int_or_none(rec[278:467])
             # determine meter size
@@ -217,7 +217,7 @@ def load_incode_readings(_incode_path, _workspace):
             #
             # special case for multiple miu per account
             #
-            if size_domain == 7L:
+            if size_domain == 7:
                 compound_meter_domain = 1
             size_domain = ec_util.to_meter_size_domain(size_domain)
             #

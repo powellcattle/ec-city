@@ -1,9 +1,10 @@
-__author__ = 'spowell'
+from __future__ import print_function, unicode_literals, absolute_import
+
 import logging
 import ec_addresses
-import ec_util
-import ec_incode
 import socket
+
+__author__ = 'spowell'
 
 logging.basicConfig(format="%(asctime)s %(levelname)s:%(message)s",
                     filename="load_addresses.log",
@@ -68,7 +69,8 @@ else:
 
 
 # HGAC Data Load
-# ec_addresses.load_e911_addresses(hgac_gdb, True)
+ec_addresses.load_e911_addresses(hgac_gdb, True)
 ec_addresses.load_starmap_streets(hgac_gdb, True)
+
 
 

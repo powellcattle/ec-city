@@ -71,4 +71,4 @@ def list(aMap):
     for bucket in aMap:
         if bucket:
             for k, v in bucket:
-                print k, v
+                print( k, v)
