@@ -282,6 +282,7 @@ def load_starmap_streets(_from_workspace, _cleanup):
         from_fc = _from_workspace + os.sep + "hgac_starmap"
 
         blocks = []
+        counter = 0
         with arcpy.da.SearchCursor(from_fc, from_fields, sql_clause=(None,"ORDER BY STREETNAME, FromAddr_L, FromAddr_R")) as cursor:
             for row in cursor:
                 str_predir = ec_util.to_upper_or_none(row[0])
@@ -295,7 +296,14 @@ def load_starmap_streets(_from_workspace, _cleanup):
                 to_addr_l = ec_util.to_pos_int_or_none(row[5])
                 from_addr_r = ec_util.to_pos_int_or_none(row[6])
                 to_addr_r = ec_util.to_pos_int_or_none(row[7])
-                pwid = name + "-"  + str(ec_util.to_pos_int_or_none(row[11]))
+                if (len(str(counter)) + len(name)) > 19:
+                      pwid = name[0:(19-len(str(counter)))] + "-" + str(counter)
+                else:
+                    pwid = name + "-"  + str(counter)
+
+
+                print(pwid)
+                counter = counter + 1
 
                 if from_addr_l:
                     blocks.append(from_addr_l)

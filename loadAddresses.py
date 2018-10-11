@@ -69,7 +69,7 @@ else:
 
 
 # HGAC Data Load
-ec_addresses.load_e911_addresses(hgac_gdb, True)
+# ec_addresses.load_e911_addresses(hgac_gdb, True)
 ec_addresses.load_starmap_streets(hgac_gdb, True)
 
 
