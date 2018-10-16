@@ -2,11 +2,6 @@ from __future__ import print_function, unicode_literals, absolute_import
 
 import logging
 import ec_addresses
-import socket
-
-import ec_incode
-import ec_psql_util
-import ec_util
 
 __author__ = 'spowell'
 
@@ -16,14 +11,9 @@ logging.basicConfig(format="%(asctime)s %(levelname)s:%(message)s",
                     level=logging.DEBUG,
                     datefmt="%m/%d/%Y %I:%M:%S %p")
 
-if socket.gethostname() == 'gis':
-    hgac_gdb = "E:/dev/projects/ec-city/data/HGAC/oct1_2018/WhartonCo_Streets_Addresses_Oct1_2018/Wharton_HGAC_streets_addresses_Oct2018.gdb"
-    cad_shp = "D:/dev/projects/ec-city/data/WhartonCAD/Ownership.shp"
-
-else:
-    hgac_gdb = "D:/dev/projects/ec-city/data/HGAC/oct1_2018/WhartonCo_Streets_Addresses_Oct1_2018/Wharton_HGAC_streets_addresses_Oct2018.gdb"
-    cad_shp = "data/WhartonCAD/Ownership.shp"
-    incode_file_path = "data/incode/TMP_PC2HOST.TMP"
+hgac_gdb = "data/HGAC/oct1_2018/WhartonCo_Streets_Addresses_Oct1_2018/Wharton_HGAC_streets_addresses_Oct2018.gdb"
+cad_shp = "data/WhartonCAD/Ownership.shp"
+incode_file_path = "data/incode/TMP_PC2HOST.TMP"
 
 # ec_addresses.load_unique_street_names()
 # ec_addresses.load_unique_prefixes()
