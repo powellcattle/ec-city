@@ -61,6 +61,14 @@ class Address:
         if add_zip:
             self.add_zip = str(add_zip).strip()
 
+    def is_valid(self):
+        if not self.add_number:
+            return False
+        if not self.st_name:
+            return False
+
+        return True
+
     def __str__(self):
         to_str = None
 
@@ -115,18 +123,17 @@ class Address:
         return _tmp_full
 
 
-def insert_address(_con, _address, _source):
-    SQL_INSERT_ADDRESSES_911 = "INSERT INTO address.address_911(add_number, st_name, st_suffix, st_type, add_unit, add_full, add_source, add_zip, add_city, fuzzy) " \
-                               "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s)) ON CONFLICT ON " \
-                               "CONSTRAINT address_911_name_idx DO NOTHING"
+def insert_address(_con, _address, _source, _sql_insert):
+
     try:
         if _con is None:
             logging.debug("Connection is None")
             return
 
         cur = _con.cursor()
-        cur.execute(SQL_INSERT_ADDRESSES_911, [
+        cur.execute(_sql_insert, [
             _address.add_number,
+            _address.st_prefix,
             _address.st_name,
             _address.st_suffix,
             _address.st_type,
@@ -135,7 +142,7 @@ def insert_address(_con, _address, _source):
             _source,
             _address.add_zip,
             _address.add_city,
-             _address.full_name()])
+            _address.full_name()])
 
     except psycopg2.DatabaseError as e:
         logging.error(e)
@@ -146,7 +153,7 @@ def setup_e911_addresses_tables(_con):
     SQL_CREATE_ADDRESSES_911 = "CREATE TABLE address.address_911(" \
                                "address_911_id SERIAL4 NOT NULL, " \
                                "add_number INT NOT NULL, " \
-                               "st_prefix CHARACTER(1) NULL, " \
+                               "st_prefix CHARACTER(9) NULL, " \
                                "st_name VARCHAR(100) NOT NULL, " \
                                "st_suffix VARCHAR(5) NULL, " \
                                "st_type VARCHAR(10) NULL, " \
@@ -178,6 +185,42 @@ def setup_e911_addresses_tables(_con):
             _con.close()
 
 
+def setup_addresses_incode_table(_con):
+    SQL_DROP_ADDRESSES_INCODE = "DROP TABLE IF EXISTS address.address_incode"
+    SQL_CREATE_ADDRESSES_INCODE = "CREATE TABLE address.address_incode(" \
+                               "address_incode_id SERIAL4 NOT NULL, " \
+                               "add_number INT NOT NULL, " \
+                               "st_prefix VARCHAR(5) NULL, " \
+                               "st_name VARCHAR(100) NOT NULL, " \
+                               "st_suffix VARCHAR(5) NULL, " \
+                               "st_type VARCHAR(10) NULL, " \
+                               "add_unit VARCHAR(20) NULL, " \
+                               "add_full VARCHAR(50) NOT NULL, " \
+                               "add_source VARCHAR(20) NOT NULL, " \
+                               "add_zip CHARACTER(5) NULL, " \
+                               "add_city VARCHAR(25) NULL, " \
+                               "fuzzy CHARACTER(4) NULL, " \
+                               "CONSTRAINT unique_address_incode_pkey PRIMARY KEY (address_incode_id), " \
+                               "CONSTRAINT address_incode_name_idx UNIQUE (add_full, add_unit))"
+
+    try:
+        cur = _con.cursor()
+        cur.execute(SQL_DROP_ADDRESSES_INCODE)
+        cur.execute(SQL_CREATE_ADDRESSES_INCODE)
+
+    except psycopg2.DatabaseError as e:
+        if _con:
+            _con.rollback()
+        logging.error(e)
+
+    except:
+        logging.error(sys.exc_info()[1])
+
+    finally:
+        if _con:
+            _con.commit()
+            _con.close()
+
 def insert_incode(_con, _address, _source):
     SQL_INSERT_ADDRESSES_911 = "INSERT INTO address.address_911(add_number, st_name, st_suffix, st_type, add_unit, add_full, add_source, add_zip, add_city, fuzzy) " \
                                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s)) ON CONFLICT ON " \
@@ -196,7 +239,7 @@ def insert_incode(_con, _address, _source):
         logging.error(e)
 
 
-def setup_incode_tables(_con):
+def setup_addresses_E911_table(_con):
     SQL_DROP_ADDRESSES_911 = "DROP TABLE IF EXISTS address.address_911"
     SQL_CREATE_ADDRESSES_911 = "CREATE TABLE address.address_911(" \
                                "address_911_id SERIAL4 NOT NULL, " \
@@ -233,51 +276,50 @@ def setup_incode_tables(_con):
             _con.close()
 
 def load_starmap_streets(_from_workspace, _cleanup):
-
     edit = None
+
     try:
-
-        # psql_connection = ec_psql_util.psql_connection("ec", "sde", "sde", "localhost", "5432")
-
+        #
+        # arcgis stuff for multi-users
         to_workspace = ec_arcpy_util.sde_workspace_via_host()
-        arcpy.env.workspace = to_workspace
         arcpy.AcceptConnections(to_workspace, False)
         arcpy.DisconnectUser(to_workspace, "ALL")
+        arcpy.env.workspace = to_workspace
         #
-        # NAD_1983_StatePlane_Texas_South_Central_FIPS_4204_Feet
-        #
+        # if first time, create featuredataset HGAC
+        ds = ec_arcpy_util.find_dataset("*HGAC")
         sr_2278 = arcpy.SpatialReference(2278)
-
-        if not arcpy.Exists("HGAC"):
-            arcpy.CreateFeatureDataset_management(to_workspace, "HGAC", sr_2278)
-
-        if arcpy.Exists("starmap"):
+        if ds is None:
+            ds = arcpy.CreateFeatureDataset_management(to_workspace, "HGAC", sr_2278)
+        #
+        # if feature class exists, delete it
+        fc = ec_arcpy_util.find_feature_class("*starmap","HGAC")
+        if fc:
             arcpy.Delete_management("starmap")
         #
-        # Define Fields for starmap
-        arcpy.CreateFeatureclass_management(to_workspace, "HGAC/starmap", "POLYLINE", "", "", "", sr_2278)
-        arcpy.AddField_management("starmap", "pwid", "TEXT", "", "", 20, "PubWorks Id", "NON_NULLABLE")
-        arcpy.AddField_management("starmap", "pwname", "TEXT", "", "", 50, "PubWorks Name", "NON_NULLABLE")
-        arcpy.AddField_management("starmap", "st_predir", "TEXT", "", "", 9, "Street Prefix", "NULLABLE")
-        arcpy.AddField_management("starmap", "st_name", "TEXT", "", "", 50, "Street Name", "NULLABLE")
-        arcpy.AddField_management("starmap", "st_fullname", "TEXT", "", "", 50, "Full Street Name", "NULLABLE")
-        arcpy.AddField_management("starmap", "st_type", "TEXT", "", "", 4, "Street Type", "NULLABLE")
-        arcpy.AddField_management("starmap", "from_addr_l", "LONG", "", "", "", "From Left Block #", "NON_NULLABLE")
-        arcpy.AddField_management("starmap", "to_addr_l", "LONG", "", "", "", "To Left Block #", "NON_NULLABLE")
-        arcpy.AddField_management("starmap", "from_addr_r", "LONG", "", "", "", "From Right Block #", "NON_NULLABLE")
-        arcpy.AddField_management("starmap", "to_addr_r", "LONG", "", "", "", "To Right Block #", "NON_NULLABLE")
-        arcpy.AddField_management("starmap", "source", "TEXT", "", "", 40, "Data Source", "NON_NULLABLE")
-        arcpy.AddField_management("starmap", "global_id", "GUID", "", "", 10, "Global ID", "NON_NULLABLE")
+        # Define Fields for starmap featureclass
+        fc = arcpy.CreateFeatureclass_management(to_workspace + r"\HGAC", "starmap", "POLYLINE", "", "", "", sr_2278)
+        arcpy.AddField_management(fc, "pwid", "TEXT", "", "", 20, "PubWorks Id", "NON_NULLABLE")
+        arcpy.AddField_management(fc, "pwname", "TEXT", "", "", 50, "PubWorks Name", "NON_NULLABLE")
+        arcpy.AddField_management(fc, "st_predir", "TEXT", "", "", 9, "Street Prefix", "NULLABLE")
+        arcpy.AddField_management(fc, "st_name", "TEXT", "", "", 50, "Street Name", "NULLABLE")
+        arcpy.AddField_management(fc, "st_fullname", "TEXT", "", "", 50, "Full Street Name", "NULLABLE")
+        arcpy.AddField_management(fc, "st_type", "TEXT", "", "", 4, "Street Type", "NULLABLE")
+        arcpy.AddField_management(fc, "from_addr_l", "LONG", "", "", "", "From Left Block #", "NON_NULLABLE")
+        arcpy.AddField_management(fc, "to_addr_l", "LONG", "", "", "", "To Left Block #", "NON_NULLABLE")
+        arcpy.AddField_management(fc, "from_addr_r", "LONG", "", "", "", "From Right Block #", "NON_NULLABLE")
+        arcpy.AddField_management(fc, "to_addr_r", "LONG", "", "", "", "To Right Block #", "NON_NULLABLE")
+        arcpy.AddField_management(fc, "source", "TEXT", "", "", 40, "Data Source", "NON_NULLABLE")
+        arcpy.AddField_management(fc, "global_id", "GUID", "", "", 10, "Global ID", "NON_NULLABLE")
         fields_starmap = ["pwid", "pwname", "st_predir", "st_name", "st_fullname", "st_type", "from_addr_l", "to_addr_l", "from_addr_r","to_addr_r", "source", "global_id", "SHAPE@"]
 
-        if not arcpy.Describe("HGAC").isVersioned:
-            arcpy.RegisterAsVersioned_management("HGAC", "EDITS_TO_BASE")
+        if not arcpy.Describe(ds).isVersioned:
+            arcpy.RegisterAsVersioned_management(ds, "EDITS_TO_BASE")
         edit = arcpy.da.Editor(to_workspace)
         edit.startEditing(with_undo=False, multiuser_mode=True)
         edit.startOperation()
 
-        insert_cursor = arcpy.da.InsertCursor("hgac/starmap", fields_starmap)
-
+        insert_cursor = arcpy.da.InsertCursor("starmap", fields_starmap)
         from_fields = ["St_PreDir","StreetName", "Full_Name", "ST_POSTYP", "FromAddr_L", "ToAddr_L", "FromAddr_R", "ToAddr_R","SOURCE", "GLOBALID", "SHAPE@", "OBJECTID"]
         from_fc = _from_workspace + os.sep + "hgac_starmap"
 
@@ -300,9 +342,6 @@ def load_starmap_streets(_from_workspace, _cleanup):
                       pwid = name[0:(19-len(str(counter)))] + "-" + str(counter)
                 else:
                     pwid = name + "-"  + str(counter)
-
-
-                print(pwid)
                 counter = counter + 1
 
                 if from_addr_l:
@@ -325,17 +364,13 @@ def load_starmap_streets(_from_workspace, _cleanup):
                 insert_cursor.insertRow((pwid, pwname, str_predir, name, full_name, st_type, from_addr_l, to_addr_l, from_addr_r, to_addr_r, source, global_id, shape))
 
     except psycopg2.DatabaseError as e:
-        # if con:
-        #     con.rollback()
         logging.error(e)
 
     except:
+        logging.error(arcpy.GetMessages())
         logging.error(sys.exc_info()[1])
 
     finally:
-        # if con:
-        #     con.commit()
-        #     con.close()
         if edit:
             edit.stopOperation()
             logging.info("Saving changes for HGAC Starmap import")
@@ -1344,6 +1379,12 @@ def load_parcel_addresses(_from_shapefile):
 
 
 def load_e911_addresses(_from_workspace, _cleanup=True):
+    edit = None
+    SQL_INSERT_ADDRESSES_911 = "INSERT INTO address.address_911(add_number, st_prefix, st_name, st_suffix, st_type, add_unit, add_full, add_source, add_zip, add_city, fuzzy) " \
+                               "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s)) ON CONFLICT ON " \
+                               "CONSTRAINT address_911_name_idx DO NOTHING"
+
+
     try:
         #
         # drop/create table for schema address
@@ -1355,50 +1396,48 @@ def load_e911_addresses(_from_workspace, _cleanup=True):
         #
         # arcgis stuff for multi-users
         to_workspace = ec_arcpy_util.sde_workspace_via_host()
-        arcpy.env.workspace = to_workspace
         arcpy.AcceptConnections(to_workspace, False)
         arcpy.DisconnectUser(to_workspace, "ALL")
+        arcpy.env.workspace = to_workspace
+
         #
-        # NAD_1983_StatePlane_Texas_South_Central_FIPS_4204_Feet
-        #
+        # if first time, create featuredataset HGAC
+        ds = ec_arcpy_util.find_dataset("*HGAC")
         sr_2278 = arcpy.SpatialReference(2278)
+        if ds is None:
+            ds = arcpy.CreateFeatureDataset_management(to_workspace, "HGAC", sr_2278)
 
         #
-        # setup dataset and feature class
-        #
-        if not arcpy.Exists("HGAC"):
-            arcpy.CreateFeatureDataset_management(to_workspace, "HGAC", sr_2278)
-
-        if arcpy.Exists("hgac911_address"):
-            arcpy.Delete_management("hgac911_address")
-        arcpy.CreateFeatureclass_management(to_workspace, "hgac/hgac911_address", "POINT", "", "", "", sr_2278)
-        arcpy.AddField_management("hgac911_address", "add_number", "LONG", "", "", "", "House Number", "NON_NULLABLE")
-        arcpy.AddField_management("hgac911_address", "st_prefix", "TEXT", "", "", 6, "Prefix", "NULLABLE")
-        arcpy.AddField_management("hgac911_address", "st_name", "TEXT", "", "", 50, "Street Name", "NON_NULLABLE")
-        arcpy.AddField_management("hgac911_address", "st_suffix", "TEXT", "", "", 10, "Street Suffix", "NULLABLE")
-        arcpy.AddField_management("hgac911_address", "st_type", "TEXT", "", "", 4, "Street Type", "NULLABLE")
-        arcpy.AddField_management("hgac911_address", "add_unit", "TEXT", "", "", 20, "Unit", "NULLABLE")
-        arcpy.AddField_management("hgac911_address", "st_fullname", "TEXT", "", "", 50, "Full Street Name", "NON_NULLABLE")
-        arcpy.AddField_management("hgac911_address", "add_zip", "TEXT", "", "", 5, "ZIP", "NULLABLE")
-        arcpy.AddField_management("hgac911_address", "add_city", "TEXT", "", "", 40, "City", "NULLABLE")
-        arcpy.AddField_management("hgac911_address", "source", "TEXT", "", "", 40, "Data Source", "NON_NULLABLE")
-        arcpy.AddField_management("hgac911_address", "global_id", "GUID", "", "", 10, "Global ID", "NON_NULLABLE")
-
-        if not arcpy.Describe("HGAC").isVersioned:
-            arcpy.RegisterAsVersioned_management("HGAC", "EDITS_TO_BASE")
+        # if feature class exists, delete it
+        fc = ec_arcpy_util.find_feature_class("*address911","HGAC")
+        if fc:
+            arcpy.Delete_management("address911")
 
         #
-        # start editing transaction
-        #
+        # Define Fields for starmap featureclass
+        fc = arcpy.CreateFeatureclass_management(to_workspace + r"\HGAC", "address911", "POINT", "", "", "", sr_2278)
+        arcpy.AddField_management(fc, "add_number", "LONG", "", "", "", "House Number", "NON_NULLABLE")
+        arcpy.AddField_management(fc, "st_prefix", "TEXT", "", "", 6, "Prefix", "NULLABLE")
+        arcpy.AddField_management(fc, "st_name", "TEXT", "", "", 50, "Street Name", "NON_NULLABLE")
+        arcpy.AddField_management(fc, "st_suffix", "TEXT", "", "", 10, "Street Suffix", "NULLABLE")
+        arcpy.AddField_management(fc, "st_type", "TEXT", "", "", 4, "Street Type", "NULLABLE")
+        arcpy.AddField_management(fc, "add_unit", "TEXT", "", "", 20, "Unit", "NULLABLE")
+        arcpy.AddField_management(fc, "st_fullname", "TEXT", "", "", 50, "Full Street Name", "NON_NULLABLE")
+        arcpy.AddField_management(fc, "add_zip", "TEXT", "", "", 5, "ZIP", "NULLABLE")
+        arcpy.AddField_management(fc, "add_city", "TEXT", "", "", 40, "City", "NULLABLE")
+        arcpy.AddField_management(fc, "source", "TEXT", "", "", 40, "Data Source", "NON_NULLABLE")
+        arcpy.AddField_management(fc, "global_id", "GUID", "", "", 10, "Global ID", "NON_NULLABLE")
+
+        if not arcpy.Describe(ds).isVersioned:
+            arcpy.RegisterAsVersioned_management(ds, "EDITS_TO_BASE")
         edit = arcpy.da.Editor(to_workspace)
         edit.startEditing(with_undo=False, multiuser_mode=True)
         edit.startOperation()
-        arcpy.AddIndex_management("hgac911_address", ["st_fullname", "add_unit"], "hgac911_fc_unq_idx", "unique")
 
         #
         # feature class field list
         fields_e911_address = ["add_number", "st_prefix", "st_name", "st_suffix", "st_type", "add_unit", "st_fullname", "add_zip", "add_city", "source", "global_id", "SHAPE@"]
-        insert_cursor = arcpy.da.InsertCursor("hgac/hgac911_address", fields_e911_address)
+        insert_cursor = arcpy.da.InsertCursor("address911", fields_e911_address)
 
         from_fields = ["ADD_NUMBER", "ST_PREDIR", "STREETNAME", "ST_POSTYP", "UNIT", "POST_COMM", "POST_CODE", "SOURCE", "GLOBALID", "SHAPE@"]
         from_fc = _from_workspace + os.sep + "hgac911_address"
@@ -1440,7 +1479,12 @@ def load_e911_addresses(_from_workspace, _cleanup=True):
                                          point))
 
                 # Insert into Address schema
-                insert_address(psql_connection, address, source)
+                insert_address(psql_connection, address, source, SQL_INSERT_ADDRESSES_911)
+
+            #
+            # Create attribute index
+            table_name = "ec.sde.address911"
+            arcpy.AddIndex_management(table_name, ["st_fullname", "add_unit"], "address911_fc_unq_idx", "unique")
 
     except psycopg2.DatabaseError as e:
         if psql_connection:

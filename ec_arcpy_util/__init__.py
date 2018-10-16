@@ -41,15 +41,23 @@ def fieldExists(_feature_class, _field_name):
             return True
     return False
 
-def find_dataset(_to_find):
+def find_dataset(_dataset):
     """
     :rtype: object
     """
-    datasets = arcpy.ListDatasets(_to_find)
+    datasets = arcpy.ListDatasets(_dataset, "FEATURE")
     for ds in datasets:
         return ds
     return None
 
+def find_feature_class(_feature_class, _data_set):
+    """
+    :rtype: object
+    """
+    feature_classes = arcpy.ListFeatureClasses(_feature_class,"ALL",_data_set)
+    for fc in feature_classes:
+        return fc
+    return None
 
 def dbCompress(inputWS):
     if all([arcpy.Exists(inputWS), arcpy.Compress_management(inputWS), arcpy.Exists(inputWS)]):
