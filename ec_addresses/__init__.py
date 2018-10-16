@@ -1,8 +1,9 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+import ec_addresses
+import ec_incode
 
 __author__ = 'spowell'
-
 
 import csv
 import logging
@@ -16,6 +17,7 @@ import ec_arcpy_util
 import ec_hashmap
 import ec_psql_util
 import ec_util
+
 
 class Address:
     add_number = None
@@ -124,7 +126,6 @@ class Address:
 
 
 def insert_address(_con, _address, _source, _sql_insert):
-
     try:
         if _con is None:
             logging.debug("Connection is None")
@@ -188,20 +189,20 @@ def setup_e911_addresses_tables(_con):
 def setup_addresses_incode_table(_con):
     SQL_DROP_ADDRESSES_INCODE = "DROP TABLE IF EXISTS address.address_incode"
     SQL_CREATE_ADDRESSES_INCODE = "CREATE TABLE address.address_incode(" \
-                               "address_incode_id SERIAL4 NOT NULL, " \
-                               "add_number INT NOT NULL, " \
-                               "st_prefix VARCHAR(5) NULL, " \
-                               "st_name VARCHAR(100) NOT NULL, " \
-                               "st_suffix VARCHAR(5) NULL, " \
-                               "st_type VARCHAR(10) NULL, " \
-                               "add_unit VARCHAR(20) NULL, " \
-                               "add_full VARCHAR(50) NOT NULL, " \
-                               "add_source VARCHAR(20) NOT NULL, " \
-                               "add_zip CHARACTER(5) NULL, " \
-                               "add_city VARCHAR(25) NULL, " \
-                               "fuzzy CHARACTER(4) NULL, " \
-                               "CONSTRAINT unique_address_incode_pkey PRIMARY KEY (address_incode_id), " \
-                               "CONSTRAINT address_incode_name_idx UNIQUE (add_full, add_unit))"
+                                  "address_incode_id SERIAL4 NOT NULL, " \
+                                  "add_number INT NOT NULL, " \
+                                  "st_prefix VARCHAR(5) NULL, " \
+                                  "st_name VARCHAR(100) NOT NULL, " \
+                                  "st_suffix VARCHAR(5) NULL, " \
+                                  "st_type VARCHAR(10) NULL, " \
+                                  "add_unit VARCHAR(20) NULL, " \
+                                  "add_full VARCHAR(50) NOT NULL, " \
+                                  "add_source VARCHAR(20) NOT NULL, " \
+                                  "add_zip CHARACTER(5) NULL, " \
+                                  "add_city VARCHAR(25) NULL, " \
+                                  "fuzzy CHARACTER(4) NULL, " \
+                                  "CONSTRAINT unique_address_incode_pkey PRIMARY KEY (address_incode_id), " \
+                                  "CONSTRAINT address_incode_name_idx UNIQUE (add_full, add_unit))"
 
     try:
         cur = _con.cursor()
@@ -221,6 +222,7 @@ def setup_addresses_incode_table(_con):
             _con.commit()
             _con.close()
 
+
 def insert_incode(_con, _address, _source):
     SQL_INSERT_ADDRESSES_911 = "INSERT INTO address.address_911(add_number, st_name, st_suffix, st_type, add_unit, add_full, add_source, add_zip, add_city, fuzzy) " \
                                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s)) ON CONFLICT ON " \
@@ -232,8 +234,8 @@ def insert_incode(_con, _address, _source):
 
         cur = _con.cursor()
         cur.execute(SQL_INSERT_ADDRESSES_911, [_address.add_number, _address.st_name, _address.st_suffix, _address.st_type,
-                                 _address.add_unit, _address.full_name(), _source, _address.add_zip, _address.add_city,
-                                 _address.full_name()])
+                                               _address.add_unit, _address.full_name(), _source, _address.add_zip, _address.add_city,
+                                               _address.full_name()])
 
     except psycopg2.DatabaseError as e:
         logging.error(e)
@@ -275,6 +277,7 @@ def setup_addresses_E911_table(_con):
             _con.commit()
             _con.close()
 
+
 def load_starmap_streets(_from_workspace, _cleanup):
     edit = None
 
@@ -293,7 +296,7 @@ def load_starmap_streets(_from_workspace, _cleanup):
             ds = arcpy.CreateFeatureDataset_management(to_workspace, "HGAC", sr_2278)
         #
         # if feature class exists, delete it
-        fc = ec_arcpy_util.find_feature_class("*starmap","HGAC")
+        fc = ec_arcpy_util.find_feature_class("*starmap", "HGAC")
         if fc:
             arcpy.Delete_management("starmap")
         #
@@ -311,7 +314,7 @@ def load_starmap_streets(_from_workspace, _cleanup):
         arcpy.AddField_management(fc, "to_addr_r", "LONG", "", "", "", "To Right Block #", "NON_NULLABLE")
         arcpy.AddField_management(fc, "source", "TEXT", "", "", 40, "Data Source", "NON_NULLABLE")
         arcpy.AddField_management(fc, "global_id", "GUID", "", "", 10, "Global ID", "NON_NULLABLE")
-        fields_starmap = ["pwid", "pwname", "st_predir", "st_name", "st_fullname", "st_type", "from_addr_l", "to_addr_l", "from_addr_r","to_addr_r", "source", "global_id", "SHAPE@"]
+        fields_starmap = ["pwid", "pwname", "st_predir", "st_name", "st_fullname", "st_type", "from_addr_l", "to_addr_l", "from_addr_r", "to_addr_r", "source", "global_id", "SHAPE@"]
 
         if not arcpy.Describe(ds).isVersioned:
             arcpy.RegisterAsVersioned_management(ds, "EDITS_TO_BASE")
@@ -320,12 +323,12 @@ def load_starmap_streets(_from_workspace, _cleanup):
         edit.startOperation()
 
         insert_cursor = arcpy.da.InsertCursor("starmap", fields_starmap)
-        from_fields = ["St_PreDir","StreetName", "Full_Name", "ST_POSTYP", "FromAddr_L", "ToAddr_L", "FromAddr_R", "ToAddr_R","SOURCE", "GLOBALID", "SHAPE@", "OBJECTID"]
+        from_fields = ["St_PreDir", "StreetName", "Full_Name", "ST_POSTYP", "FromAddr_L", "ToAddr_L", "FromAddr_R", "ToAddr_R", "SOURCE", "GLOBALID", "SHAPE@", "OBJECTID"]
         from_fc = _from_workspace + os.sep + "hgac_starmap"
 
         blocks = []
         counter = 0
-        with arcpy.da.SearchCursor(from_fc, from_fields, sql_clause=(None,"ORDER BY STREETNAME, FromAddr_L, FromAddr_R")) as cursor:
+        with arcpy.da.SearchCursor(from_fc, from_fields, sql_clause=(None, "ORDER BY STREETNAME, FromAddr_L, FromAddr_R")) as cursor:
             for row in cursor:
                 str_predir = ec_util.to_upper_or_none(row[0])
                 name = ec_util.to_upper_or_none(row[1])
@@ -339,9 +342,9 @@ def load_starmap_streets(_from_workspace, _cleanup):
                 from_addr_r = ec_util.to_pos_int_or_none(row[6])
                 to_addr_r = ec_util.to_pos_int_or_none(row[7])
                 if (len(str(counter)) + len(name)) > 19:
-                      pwid = name[0:(19-len(str(counter)))] + "-" + str(counter)
+                    pwid = name[0:(19 - len(str(counter)))] + "-" + str(counter)
                 else:
-                    pwid = name + "-"  + str(counter)
+                    pwid = name + "-" + str(counter)
                 counter = counter + 1
 
                 if from_addr_l:
@@ -1156,7 +1159,7 @@ def load_incode_addresses():
         workspace_meter = workspace + os.sep + os.sep + "Water" + os.sep + os.sep + "Meter"
         workspace_meter_address = workspace + os.sep + os.sep + "Address" + os.sep + os.sep + "meter_address"
         fields_meter = ["incode_account", "OID@", "SHAPE@"]
-        fields_meter_address = ["account", "house_number", "prefix", "street_name", "suffix", "street_type","secondary_name","city", "state", "zip", "OID@", "SHAPE@"]
+        fields_meter_address = ["account", "house_number", "prefix", "street_name", "suffix", "street_type", "secondary_name", "city", "state", "zip", "OID@", "SHAPE@"]
 
         arcpy.AcceptConnections(workspace, False)
         arcpy.DisconnectUser(workspace, "ALL")
@@ -1166,12 +1169,12 @@ def load_incode_addresses():
             arcpy.Delete_management(workspace_meter_address)
         arcpy.CreateFeatureclass_management(workspace + os.sep + os.sep + "Address", "meter_address", "POINT", "", "", "", sr_2278)
         arcpy.AddField_management(workspace_meter_address, "account", "TEXT", "", "", 7, "Account", "NON_NULLABLE")
-        arcpy.AddField_management(workspace_meter_address, "house_number", "SHORT", "", "", "", "House Number","NON_NULLABLE")
+        arcpy.AddField_management(workspace_meter_address, "house_number", "SHORT", "", "", "", "House Number", "NON_NULLABLE")
         arcpy.AddField_management(workspace_meter_address, "prefix", "TEXT", "", "", 6, "Account", "NULLABLE")
-        arcpy.AddField_management(workspace_meter_address, "street_name", "TEXT", "", "", 50, "Street Name","NON_NULLABLE")
+        arcpy.AddField_management(workspace_meter_address, "street_name", "TEXT", "", "", 50, "Street Name", "NON_NULLABLE")
         arcpy.AddField_management(workspace_meter_address, "suffix", "TEXT", "", "", 10, "Suffix", "NULLABLE")
         arcpy.AddField_management(workspace_meter_address, "street_type", "TEXT", "", "", 4, "Street Type", "NULLABLE")
-        arcpy.AddField_management(workspace_meter_address, "secondary_name", "TEXT", "", "", 10, "Secondary Name","NULLABLE")
+        arcpy.AddField_management(workspace_meter_address, "secondary_name", "TEXT", "", "", 10, "Secondary Name", "NULLABLE")
         arcpy.AddField_management(workspace_meter_address, "city", "TEXT", "", "", 25, "City", "NON_NULLABLE")
         arcpy.AddField_management(workspace_meter_address, "state", "TEXT", "", "", 2, "State", "NON_NULLABLE")
         arcpy.AddField_management(workspace_meter_address, "zip", "TEXT", "", "", 5, "ZIP", "NON_NULLABLE")
@@ -1378,12 +1381,43 @@ def load_parcel_addresses(_from_shapefile):
             edit.stopEditing(save_changes=True)
 
 
+def load_incode_addresses(_incode_file_path, _cleanup=True):
+    SQL_INSERT_ADDRESSES_INCODE = "INSERT INTO address.address_incode(add_number, st_prefix, st_name, st_suffix, st_type, add_unit, add_full, add_source, add_zip, add_city, fuzzy) " \
+                                  "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s)) ON CONFLICT ON " \
+                                  "CONSTRAINT address_incode_name_idx DO NOTHING"
+    psql_connection = None
+
+    try:
+        address_list = ec_incode.read_address(_incode_file_path)
+        psql_connection = ec_psql_util.psql_connection("ec", "sde", "sde", "localhost", "5432")
+        if _cleanup:
+            ec_addresses.setup_addresses_incode_table(psql_connection)
+            psql_connection = ec_psql_util.psql_connection("ec", "sde", "sde", "localhost", "5432")
+
+        for address in address_list:
+            if address.is_valid():
+                ec_addresses.insert_address(psql_connection, address, "INCODE", SQL_INSERT_ADDRESSES_INCODE)
+
+    except psycopg2.DatabaseError as e:
+        if psql_connection:
+            psql_connection.rollback()
+        logging.error(e)
+
+    except:
+        logging.error(sys.exc_info()[1])
+
+    finally:
+        logging.info("Saving changes for INCODE address import")
+        if psql_connection:
+            psql_connection.commit()
+            psql_connection.close()
+
+
 def load_e911_addresses(_from_workspace, _cleanup=True):
     edit = None
     SQL_INSERT_ADDRESSES_911 = "INSERT INTO address.address_911(add_number, st_prefix, st_name, st_suffix, st_type, add_unit, add_full, add_source, add_zip, add_city, fuzzy) " \
                                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s)) ON CONFLICT ON " \
                                "CONSTRAINT address_911_name_idx DO NOTHING"
-
 
     try:
         #
@@ -1409,7 +1443,7 @@ def load_e911_addresses(_from_workspace, _cleanup=True):
 
         #
         # if feature class exists, delete it
-        fc = ec_arcpy_util.find_feature_class("*address911","HGAC")
+        fc = ec_arcpy_util.find_feature_class("*address911", "HGAC")
         if fc:
             arcpy.Delete_management("address911")
 
@@ -1464,7 +1498,7 @@ def load_e911_addresses(_from_workspace, _cleanup=True):
                 global_id = row[8]
                 point = row[9]
 
-                address = Address(add_number=house_number, st_prefix=prefix, st_name=st_name, st_type=st_type, st_suffix=None, add_unit=unit, add_city=add_city, add_zip=add_zip )
+                address = Address(add_number=house_number, st_prefix=prefix, st_name=st_name, st_type=st_type, st_suffix=None, add_unit=unit, add_city=add_city, add_zip=add_zip)
                 insert_cursor.insertRow((address.add_number,
                                          address.st_prefix,
                                          address.st_name,

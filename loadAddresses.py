@@ -39,22 +39,22 @@ else:
 # Parcel Data Load
 # ec_addresses.load_parcel_addresses(cad_shp)
 # Incode Data Load
-SQL_INSERT_ADDRESSES_INCODE = "INSERT INTO address.address_incode(add_number, st_prefix, st_name, st_suffix, st_type, add_unit, add_full, add_source, add_zip, add_city, fuzzy) " \
-                              "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s)) ON CONFLICT ON " \
-                              "CONSTRAINT address_incode_name_idx DO NOTHING"
-address_list = ec_incode.read_address(incode_file_path)
-
-psql_connection = ec_psql_util.psql_connection("ec", "sde", "sde", "localhost", "5432")
-ec_addresses.setup_addresses_incode_table(psql_connection)
-psql_connection = ec_psql_util.psql_connection("ec", "sde", "sde", "localhost", "5432")
-for address in address_list:
-    if address.is_valid():
-        print(address.full_name())
-        ec_addresses.insert_address(psql_connection, address, "INCODE", SQL_INSERT_ADDRESSES_INCODE)
-
-if psql_connection:
-    psql_connection.commit()
-    psql_connection.close()
+# SQL_INSERT_ADDRESSES_INCODE = "INSERT INTO address.address_incode(add_number, st_prefix, st_name, st_suffix, st_type, add_unit, add_full, add_source, add_zip, add_city, fuzzy) " \
+#                               "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s)) ON CONFLICT ON " \
+#                               "CONSTRAINT address_incode_name_idx DO NOTHING"
+# address_list = ec_incode.read_address(incode_file_path)
+#
+# psql_connection = ec_psql_util.psql_connection("ec", "sde", "sde", "localhost", "5432")
+# ec_addresses.setup_addresses_incode_table(psql_connection)
+# psql_connection = ec_psql_util.psql_connection("ec", "sde", "sde", "localhost", "5432")
+# for address in address_list:
+#     if address.is_valid():
+#         print(address.full_name())
+#         ec_addresses.insert_address(psql_connection, address, "INCODE", SQL_INSERT_ADDRESSES_INCODE)
+#
+# if psql_connection:
+#     psql_connection.commit()
+#     psql_connection.close()
 
 # add_number = None
 # st_type = None
@@ -86,5 +86,6 @@ if psql_connection:
 #         address
 
 # HGAC Data Load
+ec_addresses.load_incode_addresses(incode_file_path, True)
 ec_addresses.load_e911_addresses(hgac_gdb, True)
 ec_addresses.load_starmap_streets(hgac_gdb, False)
