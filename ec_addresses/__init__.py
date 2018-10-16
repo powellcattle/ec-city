@@ -148,6 +148,42 @@ def insert_address(_con, _address, _source, _sql_insert):
     except psycopg2.DatabaseError as e:
         logging.error(e)
 
+def setup_CAD_addresses_table(_con):
+    SQL_DROP_ADDRESSES = "DROP TABLE IF EXISTS address.address_CAD"
+    SQL_CREATE_ADDRESSES = "CREATE TABLE address.address_CAD(" \
+                               "addressCAD_id SERIAL4 NOT NULL, " \
+                               "add_number INT NOT NULL, " \
+                               "st_prefix CHARACTER(9) NULL, " \
+                               "st_name VARCHAR(100) NOT NULL, " \
+                               "st_suffix VARCHAR(5) NULL, " \
+                               "st_type VARCHAR(10) NULL, " \
+                               "add_unit VARCHAR(20) NULL, " \
+                               "add_full VARCHAR(50) NOT NULL, " \
+                               "add_source VARCHAR(20) NOT NULL, " \
+                               "add_zip CHARACTER(5) NULL, " \
+                               "add_city VARCHAR(25) NULL, " \
+                               "fuzzy CHARACTER(4) NULL, " \
+                               "CONSTRAINT unique_addressCAD_pkey PRIMARY KEY (addressCAD_id), " \
+                               "CONSTRAINT addressCAD_name_idx UNIQUE (add_full, add_unit))"
+
+    try:
+        cur = _con.cursor()
+        cur.execute(SQL_DROP_ADDRESSES)
+        cur.execute(SQL_CREATE_ADDRESSES)
+
+    except psycopg2.DatabaseError as e:
+        if _con:
+            _con.rollback()
+        logging.error(e)
+
+    except:
+        logging.error(sys.exc_info()[1])
+
+    finally:
+        if _con:
+            _con.commit()
+            _con.close()
+
 
 def setup_e911_addresses_tables(_con):
     SQL_DROP_ADDRESSES_911 = "DROP TABLE IF EXISTS address.address_911"
@@ -1250,71 +1286,128 @@ def load_incode_addresses():
             edit.stopEditing(save_changes=True)
 
 
-def load_parcel_addresses(_from_shapefile):
+def load_parcel_addresses(_from_shapefile,_cleanup):
     con = None
     edit = None
     out_file = None
-    # prefixes = get_all_street_prefix_alias()
+    SQL_INSERT_ADDRESSES = "INSERT INTO address.address_CAD(add_number, st_prefix, st_name, st_suffix, st_type, add_unit, add_full, add_source, add_zip, add_city, fuzzy) " \
+                            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s)) ON CONFLICT ON " \
+                            "CONSTRAINT addressCAD_name_idx DO NOTHING"
 
     try:
+        #
+        # drop/create table for schema address
+        psql_connection = ec_psql_util.psql_connection("ec", "sde", "sde", "localhost", "5432")
+        if _cleanup:
+            setup_CAD_addresses_table(psql_connection)
+            psql_connection = ec_psql_util.psql_connection("ec", "sde", "sde", "localhost", "5432")
+
+        #
+        # arcgis stuff for multi-users
         to_workspace = ec_arcpy_util.sde_workspace_via_host()
-        arcpy.env.workspace = to_workspace
         arcpy.AcceptConnections(to_workspace, False)
         arcpy.DisconnectUser(to_workspace, "ALL")
+        arcpy.env.workspace = to_workspace
+        #
+        # if first time, create featuredataset WhartonCAD
+        ds = ec_arcpy_util.find_dataset("*WhartonCAD")
         sr_2278 = arcpy.SpatialReference(2278)
-
-        from_workspace = _from_shapefile
-        workspace_parcel_county = to_workspace + os.sep + os.sep + "Boundary" + os.sep + os.sep + "county_parcel_owner"
-
-        if not arcpy.Exists("WhartonCAD"):
-            arcpy.CreateFeatureDataset_management(to_workspace, "WhartonCAD", sr_2278)
-
-        if arcpy.Exists("parcel_address"):
-            arcpy.Delete_management("parcel_address")
+        if ds is None:
+            ds = arcpy.CreateFeatureDataset_management(to_workspace, "WhartonCAD", sr_2278)
+        #
+        # if feature class exists, delete it
+        fc = ec_arcpy_util.find_feature_class("*addressCAD", "WhartonCAD")
+        if fc:
+            arcpy.Delete_management("addressCAD")
+        #
+        # Define Fields for WhartonCAD address featureclass
+        #
+        #
+        #
+        #
+        #
+        #
+        # to_workspace = ec_arcpy_util.sde_workspace_via_host()
+        # arcpy.env.workspace = to_workspace
+        # arcpy.AcceptConnections(to_workspace, False)
+        # arcpy.DisconnectUser(to_workspace, "ALL")
+        # sr_2278 = arcpy.SpatialReference(2278)
+        #
+        # from_workspace = _from_shapefile
+        # workspace_parcel_county = to_workspace
+        #
+        # if not arcpy.Exists("WhartonCAD"):
+        #     arcpy.CreateFeatureDataset_management(to_workspace, "WhartonCAD", sr_2278)
+        #
+        # if arcpy.Exists("parcel_address"):
+        #     arcpy.Delete_management("parcel_address")
         #
         # Define Fields for parcel_address
-        arcpy.CreateFeatureclass_management(to_workspace, "WhartonCAD/parcel_address", "POINT", "", "", "", sr_2278)
-        arcpy.AddField_management("parcel_address", "prop_id", "TEXT", "", "", "10", "Property ID", "NON_NULLABLE")
-        arcpy.AddField_management("parcel_address", "add_number", "LONG", "", "", "", "House Number", "NON_NULLABLE")
-        arcpy.AddField_management("parcel_address", "st_prefix", "TEXT", "", "", 6, "Prefix", "NULLABLE")
-        arcpy.AddField_management("parcel_address", "st_name", "TEXT", "", "", 50, "Street Name",
-                                  "NON_NULLABLE")
-        arcpy.AddField_management("parcel_address", "st_type", "TEXT", "", "", 4, "Street Type", "NULLABLE")
-        arcpy.AddField_management("parcel_address", "add_unit", "TEXT", "", "", 20, "Unit",
-                                  "NULLABLE")
-        arcpy.AddField_management("parcel_address", "st_fullname", "TEXT", "", "", 50, "Full Street Name", "NULLABLE")
-        arcpy.AddField_management("parcel_address", "source", "TEXT", "", "", 40, "Data Source", "NON_NULLABLE")
+        arcpy.CreateFeatureclass_management(to_workspace + r"\WhartonCAD", "addressCAD", "POINT", "", "", "", sr_2278)
+        arcpy.AddField_management(fc, "prop_id", "LONG", "", "", "", "CAD Prop ID", "NON_NULLABLE")
+        arcpy.AddField_management(fc, "add_number", "LONG", "", "", "", "House Number", "NULLABLE")
+        arcpy.AddField_management(fc, "st_prefix", "TEXT", "", "", 6, "Prefix", "NULLABLE")
+        arcpy.AddField_management(fc, "st_name", "TEXT", "", "", 50, "Street Name", "NULLABLE")
+        arcpy.AddField_management(fc, "st_suffix", "TEXT", "", "", 10, "Street Suffix", "NULLABLE")
+        arcpy.AddField_management(fc, "st_type", "TEXT", "", "", 4, "Street Type", "NULLABLE")
+        arcpy.AddField_management(fc, "add_unit", "TEXT", "", "", 20, "Unit", "NULLABLE")
+        arcpy.AddField_management(fc, "st_fullname", "TEXT", "", "", 50, "Full Street Name", "NULLABLE")
+        arcpy.AddField_management(fc, "add_zip", "TEXT", "", "", 5, "ZIP", "NULLABLE")
+        arcpy.AddField_management(fc, "add_city", "TEXT", "", "", 40, "City", "NULLABLE")
+        arcpy.AddField_management(fc, "source", "TEXT", "", "", 40, "Data Source", "NON_NULLABLE")
 
-        if not arcpy.Describe("WhartonCAD").isVersioned:
-            arcpy.RegisterAsVersioned_management("WhartonCAD", "EDITS_TO_BASE")
-
-        to_fields = ["prop_id", "add_number", "st_prefix", "st_name", "st_type", "add_unit", "st_fullname", "source",
-                     "SHAPE@"]
-        from_fields = ["prop_id", "situs_num", "situs_stre", "situs_st_1", "situs_city", "SHAPE@"]
-        street_types = get_all_street_types()
-        street_type_aliases = get_all_street_type_aliases()
-
+        if not arcpy.Describe(ds).isVersioned:
+            arcpy.RegisterAsVersioned_management(ds, "EDITS_TO_BASE")
         edit = arcpy.da.Editor(to_workspace)
         edit.startEditing(with_undo=False, multiuser_mode=True)
         edit.startOperation()
 
-        insert_cursor = arcpy.da.InsertCursor("WhartonCAD/parcel_address", to_fields)
+        to_fields = ["prop_id", "add_number", "st_prefix", "st_name", "st_suffix", "st_type", "add_unit", "st_fullname", "add_zip", "add_city", "source", "SHAPE@"]
+        from_fields = ["prop_id", "situs_num", "situs_stre", "situs_st_1", "situs_st_2", "situs_city", "zip", "SHAPE@"]
+        # street_types = get_all_street_types()
+        # street_type_aliases = get_all_street_type_aliases()
+
+        insert_cursor = arcpy.da.InsertCursor("addressCAD", to_fields)
 
         # where clause to restrict to EL CAMPO
         # where_clause = "\"prop_id\" > 0 AND \"situs_num\" IS NOT NULL AND \"situs_num\" != '0' AND \"situs_city\" = 'EL CAMPO'"
-        where_clause = """ "situs_num" IS NOT NULL AND "situs_num" <> '0' AND situs_city = 'EL CAMPO' """
+        # where_clause = """ "situs_num" IS NOT NULL AND "situs_num" <> '0' AND situs_city = 'EL CAMPO' """
         # where_clause = "\"prop_id\" > 0 AND \"situs_num\" IS NOT NULL AND \"situs_num\" != '0'"
         # where_clause = "\"prop_id\" > 0 AND \"situs_num\" IS NOT NULL AND \"situs_num\" != '0' AND \"situs_city\" = 'EL CAMPO' AND \"situs_st_1\" = 'MICHAEL'"
-        with arcpy.da.SearchCursor(from_workspace, from_fields, where_clause) as cursor:
+        with arcpy.da.SearchCursor(_from_shapefile, from_fields) as cursor:
             for row in cursor:
-                house_number = row[0]
-                prefix = None
-                if str(row[1]).strip().__len__() > 0:
-                    prefix = str(row[1])
-                street = str(row[2]).strip().upper()
-                # suffix = str(row[3]).strip().upper()
-                # type = None
-                # city = str(row[4]).strip().upper()
+                prop_id = ec_util.to_pos_int_or_none(row[0])
+                if not prop_id:
+                    continue
+                house_number = ec_util.to_pos_int_or_none(row[1])
+                st_prefix = ec_util.to_upper_or_none(row[2])
+                st_name = ec_util.to_upper_or_none(row[3])
+                st_type = None
+                unit = None
+                add_city = ec_util.to_upper_or_none(row[5])
+                add_zip = ec_util.to_pos_int_or_none(row[6])
+                if not row[7]:
+                    continue
+                centroid = row[7].centroid
+
+                address = Address(add_number=house_number, st_prefix=st_prefix, st_name=st_name, st_type=st_type, st_suffix=None, add_unit=unit, add_city=add_city, add_zip=add_zip)
+                if address.is_valid():
+                    insert_address(psql_connection, address, "WHARTON CAD", SQL_INSERT_ADDRESSES)
+
+                insert_cursor.insertRow([prop_id,
+                                         address.add_number,
+                                         address.st_prefix,
+                                         address.st_name,
+                                         address.st_suffix,
+                                         address.st_type,
+                                         address.add_unit,
+                                         address.full_name(),
+                                         address.add_zip,
+                                         address.add_city,
+                                         "WHARTON CAD",
+                                         centroid])
+
+
                 # prop_id = row[5]
                 # oid = row[6]
                 # if not row[7]:
@@ -1371,13 +1464,13 @@ def load_parcel_addresses(_from_shapefile):
         logging.error(sys.exc_info()[1])
 
     finally:
-        if con:
-            con.close()
-        if out_file:
-            out_file.close()
+        if psql_connection:
+            psql_connection.commit()
+            psql_connection.close()
+
         if edit:
             edit.stopOperation()
-            logging.info("Saving Changes")
+            logging.info("Saving changes for WHARTON CAD address import")
             edit.stopEditing(save_changes=True)
 
 
