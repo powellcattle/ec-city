@@ -1,4 +1,4 @@
 import ec_incode
 
-ec_incode.read_address()
+ec_incode.read_incode_address()
 
