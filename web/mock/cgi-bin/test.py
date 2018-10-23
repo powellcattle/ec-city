@@ -1,0 +1,10 @@
+print "Content-type: text/html"
+print
+print "<HTML>"
+print "<HEAD>"
+print "<TITLE>Python Sample CGI</TITLE>"
+print "</HEAD>"
+print "<BODY>"
+print "<p>Hello, CGI World</p>"
+print "</BODY>"
+print "</html>"

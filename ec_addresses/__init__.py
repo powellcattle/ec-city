@@ -127,6 +127,7 @@ class Address:
 
         return _tmp_full
 
+
 def full_address(_address_dict):
     logging.debug("full_address: {}".format(_address_dict))
     """
@@ -200,8 +201,9 @@ def insert_address(_con, _address, _source, _sql_insert):
     except psycopg2.DatabaseError as e:
         logging.error(e)
 
+
 def sql_insert_address(_con, _address_dict, _sql_insert):
-    logging.debug("sql_insert_address: {}, {}".format(_address_dict,_sql_insert))
+    logging.debug("sql_insert_address: {}, {}".format(_address_dict, _sql_insert))
     try:
         if _con is None:
             logging.debug("Connection is None")
@@ -227,6 +229,7 @@ def sql_insert_address(_con, _address_dict, _sql_insert):
     except psycopg2.DatabaseError as e:
         logging.error("sql_insert_address (database):".format(e))
 
+
 def setup_CAD_addresses_table(_con):
     SQL_DROP_ADDRESSES = "DROP TABLE IF EXISTS address.address_CAD"
     SQL_CREATE_ADDRESSES = "CREATE TABLE address.address_CAD(" \
@@ -246,6 +249,7 @@ def setup_CAD_addresses_table(_con):
                            "CONSTRAINT addressCAD_name_idx UNIQUE (add_full, add_unit))"
 
     try:
+
         cur = _con.cursor()
         cur.execute(SQL_DROP_ADDRESSES)
         cur.execute(SQL_CREATE_ADDRESSES)
@@ -253,10 +257,7 @@ def setup_CAD_addresses_table(_con):
     except psycopg2.DatabaseError as e:
         if _con:
             _con.rollback()
-        logging.error(e)
-
-    except:
-        logging.error(sys.exc_info()[1])
+            logging.error(e)
 
     finally:
         if _con:
@@ -264,9 +265,71 @@ def setup_CAD_addresses_table(_con):
             _con.close()
 
 
+def sql_insert_not_found_address(_con, _address):
+    SQL_INSERT_ADDRESSES = "INSERT INTO address.not_found_addresses(add_number,st_prefix,st_name,st_type,add_full,add_source,add_zip,add_city) " \
+                               "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT ON " \
+                               "CONSTRAINT not_found_addresses_idx DO NOTHING"
+    try:
+        if _con is None:
+            logging.debug("Connection is None")
+            return
+
+        cur = _con.cursor()
+        cur.execute(SQL_INSERT_ADDRESSES, [
+            _address["add_number"],
+            _address["st_posttype"],
+            _address["street_name"],
+            _address["st_postype"],
+            _address["full_addr"],
+            _address["source"],
+            _address["zip"],
+            _address["city"]])
+
+
+    except psycopg2.DatabaseError as e:
+        if _con:
+            _con.rollback()
+            logging.error("insert_not_found_address: {}".format(e))
+
+    finally:
+        if _con:
+            _con.commit()
+            _con.close()
+
+def setup_not_found_address_table(_con):
+    SQL_DROP_ADDRESSES = "DROP TABLE IF EXISTS address.not_found_addresses"
+    SQL_CREATE_ADDRESSES = "CREATE TABLE address.not_found_addresses(" \
+                           "id SERIAL4 NOT NULL, " \
+                           "add_number INT NOT NULL, " \
+                           "st_prefix CHARACTER(9) NULL, " \
+                           "st_name VARCHAR(100) NOT NULL, " \
+                           "st_type VARCHAR(10) NULL, " \
+                           "add_full VARCHAR(50) NOT NULL, " \
+                           "add_source VARCHAR(20) NOT NULL, " \
+                           "add_zip CHARACTER(5) NULL, " \
+                           "add_city VARCHAR(25) NULL, " \
+                           "CONSTRAINT not_found_addresses_pkey PRIMARY KEY (id), " \
+                           "CONSTRAINT not_found_addresses_idx UNIQUE (add_full))"
+
+    try:
+
+        cur = _con.cursor()
+        cur.execute(SQL_DROP_ADDRESSES)
+        cur.execute(SQL_CREATE_ADDRESSES)
+
+    except psycopg2.DatabaseError as e:
+        if _con:
+            _con.rollback()
+            logging.error(e)
+
+    finally:
+        if _con:
+            _con.commit()
+            _con.close()
+
 def setup_e911_addresses_tables(_con):
-    SQL_DROP_ADDRESSES_911 = "DROP TABLE IF EXISTS address.address_911"
-    SQL_CREATE_ADDRESSES_911 = "CREATE TABLE address.address_911(" \
+    SQL_DROP_ADDRESSES = "DROP TABLE IF EXISTS address.address_911"
+    SQL_CREATE_ADDRESSES = "CREATE TABLE address.address_911(" \
                                "address_911_id SERIAL4 NOT NULL, " \
                                "add_number INT NOT NULL, " \
                                "st_prefix CHARACTER(9) NULL, " \
@@ -283,27 +346,24 @@ def setup_e911_addresses_tables(_con):
                                "CONSTRAINT address_911_name_idx UNIQUE (add_full, add_unit))"
 
     try:
+
         cur = _con.cursor()
-        cur.execute(SQL_DROP_ADDRESSES_911)
-        cur.execute(SQL_CREATE_ADDRESSES_911)
+        cur.execute(SQL_DROP_ADDRESSES)
+        cur.execute(SQL_CREATE_ADDRESSES)
 
     except psycopg2.DatabaseError as e:
         if _con:
             _con.rollback()
-        logging.error(e)
-
-    except:
-        logging.error(sys.exc_info()[1])
+            logging.error(e)
 
     finally:
         if _con:
             _con.commit()
             _con.close()
 
-
 def setup_addresses_incode_table(_con):
-    SQL_DROP_ADDRESSES_INCODE = "DROP TABLE IF EXISTS address.address_incode"
-    SQL_CREATE_ADDRESSES_INCODE = "CREATE TABLE address.address_incode(" \
+    SQL_DROP_ADDRESSES = "DROP TABLE IF EXISTS address.address_incode"
+    SQL_CREATE_ADDRESSES = "CREATE TABLE address.address_incode(" \
                                   "address_incode_id SERIAL4 NOT NULL, " \
                                   "add_number INT NOT NULL, " \
                                   "st_prefix VARCHAR(5) NULL, " \
@@ -321,22 +381,18 @@ def setup_addresses_incode_table(_con):
 
     try:
         cur = _con.cursor()
-        cur.execute(SQL_DROP_ADDRESSES_INCODE)
-        cur.execute(SQL_CREATE_ADDRESSES_INCODE)
+        cur.execute(SQL_DROP_ADDRESSES)
+        cur.execute(SQL_CREATE_ADDRESSES)
 
     except psycopg2.DatabaseError as e:
         if _con:
             _con.rollback()
-        logging.error(e)
-
-    except:
-        logging.error(sys.exc_info()[1])
+            logging.error(e)
 
     finally:
         if _con:
             _con.commit()
             _con.close()
-
 
 def insert_incode(_con, _address, _source):
     SQL_INSERT_ADDRESSES_911 = "INSERT INTO address.address_911(add_number, st_name, st_suffix, st_type, add_unit, add_full, add_source, add_zip, add_city, fuzzy) " \
@@ -357,8 +413,8 @@ def insert_incode(_con, _address, _source):
 
 
 def setup_addresses_E911_table(_con):
-    SQL_DROP_ADDRESSES_911 = "DROP TABLE IF EXISTS address.address_911"
-    SQL_CREATE_ADDRESSES_911 = "CREATE TABLE address.address_911(" \
+    SQL_DROP_ADDRESSES = "DROP TABLE IF EXISTS address.address_911"
+    SQL_CREATE_ADDRESSES = "CREATE TABLE address.address_911(" \
                                "address_911_id SERIAL4 NOT NULL, " \
                                "add_number INT NOT NULL, " \
                                "st_prefix CHARACTER(1) NULL, " \
@@ -376,22 +432,18 @@ def setup_addresses_E911_table(_con):
 
     try:
         cur = _con.cursor()
-        cur.execute(SQL_DROP_ADDRESSES_911)
-        cur.execute(SQL_CREATE_ADDRESSES_911)
+        cur.execute(SQL_DROP_ADDRESSES)
+        cur.execute(SQL_CREATE_ADDRESSES)
 
     except psycopg2.DatabaseError as e:
         if _con:
             _con.rollback()
-        logging.error(e)
-
-    except:
-        logging.error(sys.exc_info()[1])
+            logging.error(e)
 
     finally:
         if _con:
             _con.commit()
             _con.close()
-
 
 def load_starmap_streets(_from_workspace, _cleanup):
     edit = None
@@ -956,9 +1008,10 @@ def get_street_name_by_exception(_prefix, _exception_street_name):
 
 
 def sql_get_street_name_by_alias(_alias):
+    logging.debug("sql_get_street_name_by_alias {}".format(_alias))
     con = None
     street_name = None
-    
+
     try:
         con = ec_psql_util.psql_connection("ec", "sde", "sde", "localhost", "5432")
         cur = con.cursor()
@@ -967,10 +1020,10 @@ def sql_get_street_name_by_alias(_alias):
         cur.execute(sql, {"_alias": _alias})
         street_name = cur.fetchone()
         con.commit()
-        
+
     except Exception as e:
         logging.error("sql_get_street_name_by_alias: {}".format(e))
-                
+
     except psycopg2.DatabaseError as e:
         logging.error("sql_get_street_name_by_alias: {}".format(e))
 
@@ -981,12 +1034,12 @@ def sql_get_street_name_by_alias(_alias):
 
 
 def sql_get_unique_street_name(_prefix, _name, _type=None):
-    logging.debug("get_street_name: {}, {}, {}".format(_prefix, _name, _type))
+    logging.debug("sql_get_unique_street_name: {}, {}, {}".format(_prefix, _name, _type))
     con = None
     try:
         con = ec_psql_util.psql_connection("ec", "sde", "sde", "localhost", "5432")
         cur = con.cursor()
-        sql = "SELECT st_predir, streetname, st_postype FROM address.unique_full_street_names AS a WHERE "
+        sql = "SELECT DISTINCT(streetname), st_predir, st_postype FROM address.unique_full_street_names AS a WHERE "
         # street_name = []
         if _prefix:
             if _type:
@@ -1002,12 +1055,16 @@ def sql_get_unique_street_name(_prefix, _name, _type=None):
             else:
                 sql = sql + "a.streetname = %(_streetname)s"
                 cur.execute(sql, {"_streetname": _name})
-        row = cur.fetchone()
 
-        address_dict = defaultdict(lambda : None)
-        if row:
-            st_predir = row[0]
-            street_name = row[1]
+        rows = cur.fetchall()
+        if len(rows) > 1:
+            logging.error("Ambiguous address provided and could not determine a matching address for {}".format(sql))
+            return None
+
+        address_dict = defaultdict(lambda: None)
+        for row in rows:
+            st_predir = row[1]
+            street_name = row[0]
             st_postype = row[2]
             if st_predir:
                 st_predir = st_predir.strip().upper()
@@ -1023,9 +1080,6 @@ def sql_get_unique_street_name(_prefix, _name, _type=None):
 
     except psycopg2.DatabaseError as e:
         logging.error("sql_get_unique_street_name database: {}".format(e))
-
-    except Exception as e:
-        logging.error("sql_get_unique_street_name: {}".format(e))
 
     finally:
         if con:
@@ -1103,13 +1157,13 @@ def parse_house_number(_string):
 
 
 def address_parcer(_prefixes, _full_address_text):
-    logging.debug("address_parcer: {} %".format(_full_address_text))
+    logging.debug("address_parcer: {}".format(_full_address_text))
     # load necessary arrays
     street_types = get_all_street_types();
     street_type_aliases = get_all_street_type_aliases();
 
     # remove unwanted characters in address
-    for char in [".", ",", "&","%"]:
+    for char in [".", ",", "&", "%"]:
         address_text = _full_address_text.replace(char, "")
     # for char in ",":
     #     freeform = _freeform.replace(char, "")
@@ -1134,13 +1188,13 @@ def address_parcer(_prefixes, _full_address_text):
         return None
 
     #
-    # Check last word: to determine the type: unit, street type, etc
+    # Check last word: to determine the word type: unit, street type, etc
     idx_end = address_words.__len__() - 1
     street_type = None
-    for type in street_types:
-        if address_words[idx_end] == type:
+    for word_type in street_types:
+        if address_words[idx_end] == word_type:
             idx_end = idx_end - 1
-            street_type = type
+            street_type = word_type
             break
 
     #
@@ -1175,10 +1229,8 @@ def address_parcer(_prefixes, _full_address_text):
             for idx in range(idx_start, idx_start + word_count):
                 street_name = street_name + " " + address_words[idx]
 
-
             street_name = street_name.strip()
             word_count = word_count - 1
-
             address_dict = sql_address_validator(
                 idx,
                 address_words,
@@ -1193,9 +1245,10 @@ def address_parcer(_prefixes, _full_address_text):
                 break
 
     if address_dict:
-        logging.debug("\tFOUND: %s\n" % address_dict)
+        logging.debug("\tFOUND: {}\n".format(address_dict))
     else:
-        logging.debug("\tNOT PARSED\n")
+        logging.debug("\tNOT PARSED: {}\n".format(address_dict))
+        address_dict = None
 
     return address_dict
 
@@ -1213,28 +1266,32 @@ def sql_address_validator(_idx,
     address_word_count = _address_words.__len__()
     #
     # SQL lookup for address
-    # address = get_street_name(_prefix, _street_name, _type)
+    # based on the information provided
+
     address_dict = sql_get_unique_street_name(_prefix, _street_name, _type)
     unit = None
 
-    if address_dict.__len__() == 0:
-        # lookup using street name alias table
+    if address_dict is None or address_dict.__len__() == 0:
+        # could not find based on provided address
+        # try using street name alias
+        logging.info("Trying to find alias for {}".format(_street_name))
         street_name = sql_get_street_name_by_alias(_street_name)
         address_dict = sql_get_unique_street_name(_prefix, street_name, _type)
+        if address_dict is None:
+            return None
+
         # if not address:
         # check for street exceptions
         # street_name = get_street_name_by_exception(_prefix,_street_name)
         # address = get_street_name(_prefix, street_name)
     # else:
-        # check for secondary unit values
-        # if (address_word_count - _idx) > 1:
-        #     unit = get_unit(_street_types, _street_type_aliases,
-        #                     _address_words[address_word_count - 1].upper())
-    if address_dict.__len__() > 0:
+    # check for secondary unit values
+    # if (address_word_count - _idx) > 1:
+    #     unit = get_unit(_street_types, _street_type_aliases,
+    #                     _address_words[address_word_count - 1].upper())
+    if address_dict is not None and address_dict.__len__() > 0:
         address_dict["add_number"] = int(_house_number)
         address_dict["unit"] = unit
-        # address.add_number = int(_house_number)
-        # address.add_unit = unit
 
     return address_dict
 
@@ -1437,30 +1494,7 @@ def load_parcel_addresses(_from_shapefile, _cleanup):
         fc = ec_arcpy_util.find_feature_class("*addressCAD", "WhartonCAD")
         if fc:
             arcpy.Delete_management("addressCAD")
-        #
-        # Define Fields for WhartonCAD address featureclass
-        #
-        #
-        #
-        #
-        #
-        #
-        # to_workspace = ec_arcpy_util.sde_workspace_via_host()
-        # arcpy.env.workspace = to_workspace
-        # arcpy.AcceptConnections(to_workspace, False)
-        # arcpy.DisconnectUser(to_workspace, "ALL")
-        # sr_2278 = arcpy.SpatialReference(2278)
-        #
-        # from_workspace = _from_shapefile
-        # workspace_parcel_county = to_workspace
-        #
-        # if not arcpy.Exists("WhartonCAD"):
-        #     arcpy.CreateFeatureDataset_management(to_workspace, "WhartonCAD", sr_2278)
-        #
-        # if arcpy.Exists("parcel_address"):
-        #     arcpy.Delete_management("parcel_address")
-        #
-        # Define Fields for parcel_address
+        # Define Fields for CAD address
         arcpy.CreateFeatureclass_management(to_workspace + r"\WhartonCAD", "addressCAD", "POINT", "", "", "", sr_2278)
         arcpy.AddField_management(fc, "prop_id", "LONG", "", "", "", "CAD Prop ID", "NON_NULLABLE")
         arcpy.AddField_management(fc, "add_number", "LONG", "", "", "", "House Number", "NULLABLE")
@@ -1497,10 +1531,10 @@ def load_parcel_addresses(_from_shapefile, _cleanup):
         prefixes = get_all_street_prefix_alias()
 
         with arcpy.da.SearchCursor(_from_shapefile, from_fields, where_clause) as cursor:
-
             for row in cursor:
                 #
                 # create defaultdict to hold address values
+                # we want null values with invalid keys
                 address_dict = defaultdict(lambda: None)
 
                 prop_id = ec_util.to_pos_int_or_none(row[0])
@@ -1509,14 +1543,14 @@ def load_parcel_addresses(_from_shapefile, _cleanup):
 
                 add_number = ec_util.to_pos_int_or_none(row[1])
                 if None is not add_number and 0 != add_number:
-                    address_dict["add_number"] =  add_number
+                    address_dict["add_number"] = add_number
                 else:
                     # bad address number
                     continue
 
                 st_predir = ec_util.to_upper_or_none(row[2])
                 if st_predir:
-                    address_dict["st_predir"] =  st_predir
+                    address_dict["st_predir"] = st_predir
 
                 street_name = ec_util.to_upper_or_none(row[3])
                 if street_name:
@@ -1537,7 +1571,6 @@ def load_parcel_addresses(_from_shapefile, _cleanup):
                 if zip:
                     address_dict["zip"] = zip
 
-
                 if row[7]:
                     if row[7].centroid:
                         centroid = row[7].centroid
@@ -1550,7 +1583,24 @@ def load_parcel_addresses(_from_shapefile, _cleanup):
                 #
                 # scourgify_dict = scourgify.normalize_address_record(address.full_name())
 
+
                 address_dict = address_parcer(prefixes, full_address(address_dict))
+                if address_dict is None:
+                    #
+                    # No match found - log un-matchable address
+                    address_dict = defaultdict(lambda: None)
+                    address_dict["add_number"] = add_number
+                    address_dict["st_predir"] = st_predir
+                    address_dict["street_name"] = street_name
+                    address_dict["st_postype"] = st_postype
+                    address_dict["city"] = city
+                    address_dict["zip"] = zip
+                    address_dict["source"] = "WHARTON CAD"
+                    address_dict["full_addr"] = full_address(address_dict)
+                    sql_insert_not_found_address(psql_connection, address_dict)
+                    psql_connection = ec_psql_util.psql_connection()
+                    continue
+
 
                 add_number = None
                 street_name = None
@@ -1558,10 +1608,6 @@ def load_parcel_addresses(_from_shapefile, _cleanup):
                 st_postype = None
 
                 if address_dict.__len__() > 0 and address_dict["add_number"] and address_dict["street_name"]:
-
-
-
-
                     # street name exceptions
                     if "EAST" == address_dict["street_name"] or "SOUTH" == address_dict["street_name"]:
                         address_dict["st_postype"] = "ST"
@@ -1573,26 +1619,26 @@ def load_parcel_addresses(_from_shapefile, _cleanup):
                             logging.error("Street {} has wrong prefix".format(address_dict["full_addr"]))
                             continue
                     # else:
-                        # addr_dict = usaddress.tag(address.full_name())
-                        # addresses, value = addr_dict
-                        #
-                        # if "Street Address" == value:
-                        #     for key, value in addresses.items():
-                        #         if "AddressNumber" == key:
-                        #             add_number = ec_util.to_pos_int_or_none(value)
-                        #         elif "StreetName" == key:
-                        #             street_name = ec_util.to_upper_or_none(value)
-                        #         elif "StreetNamePreDirectional" == key:
-                        #             st_predir = ec_util.to_upper_or_none(value)
-                        #         elif "StreetNamePostType" == key:
-                        #             st_postype = ec_util.to_upper_or_none(value)
+                    # addr_dict = usaddress.tag(address.full_name())
+                    # addresses, value = addr_dict
+                    #
+                    # if "Street Address" == value:
+                    #     for key, value in addresses.items():
+                    #         if "AddressNumber" == key:
+                    #             add_number = ec_util.to_pos_int_or_none(value)
+                    #         elif "StreetName" == key:
+                    #             street_name = ec_util.to_upper_or_none(value)
+                    #         elif "StreetNamePreDirectional" == key:
+                    #             st_predir = ec_util.to_upper_or_none(value)
+                    #         elif "StreetNamePostType" == key:
+                    #             st_postype = ec_util.to_upper_or_none(value)
 
-                        # if None is not st_predir or None is not street_name:
-                        #     print("prefix {} name {}".format(st_predir, street_name))
-                        #     st_postype = find_st_type(psql_connection, add_number, st_predir, street_name)
-                        #     if not st_postype:
-                        #         print(address.full_name())
-                        # address = Address(add_number=add_number, st_prefix=st_predir, st_name=street_name, st_type=st_postype, st_suffix=None, add_unit=unit, add_city=city, add_zip=zip)
+                    # if None is not st_predir or None is not street_name:
+                    #     print("prefix {} name {}".format(st_predir, street_name))
+                    #     st_postype = find_st_type(psql_connection, add_number, st_predir, street_name)
+                    #     if not st_postype:
+                    #         print(address.full_name())
+                    # address = Address(add_number=add_number, st_prefix=st_predir, st_name=street_name, st_type=st_postype, st_suffix=None, add_unit=unit, add_city=city, add_zip=zip)
 
                     #
                     # a little house keeping by providing some address values

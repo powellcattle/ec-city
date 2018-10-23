@@ -23,6 +23,7 @@ incode_file_path = "data/incode/TMP_PC2HOST.TMP"
 #
 # print(st_name)
 
+ec_addresses.setup_not_found_address_table(ec_psql_util.psql_connection())
 
 # HGAC Data Load
 # ec_addresses.load_starmap_streets(hgac_gdb, True)
