@@ -1,3 +1,8 @@
+from collections import defaultdict
+
+from frozendict import frozendict
+from scourgify import normalize_address_record
+
 import ec_addresses
 
 __author__ = 'spowell'
@@ -9,59 +14,67 @@ import arcpy
 import ec_util
 import usaddress
 
-
+INCODE_ADDRESS_EXCEPTIONS = frozendict({
+    "515 E. FIRST .1": {"add_number": 515, "st_predir": "E", "street_name": "1ST"},
+    "111 AVE. D D": {"add_number": 111, "street_name": "AVE D"},
+    "23280 US 59 SOUTH": {"add_number": 23280, "street_name": "US 59"}
+})
 
 def read_incode_address(_incode_file_path):
     open_file = None
-    incode_file = _incode_file_path
 
     try:
-        open_file = open(incode_file)
-        records = open_file.readlines()
-        address_list = []
+        open_file = open(_incode_file_path)
+        incode_records = open_file.readlines()
+        address_list = list()
+        prefixes = ec_addresses.get_all_street_prefix_alias()
 
-        for rec in records:
+        for rec in incode_records:
+            #
+            # create defaultdict to hold address values
+            # we want null values with invalid keys
+            address_dict = defaultdict(lambda: None)
+
             # miu
             miu = ec_util.to_pos_int_or_none(rec[28:38])
             if miu is None:
                 continue
             # address
             incode_address = ec_util.to_upper_or_none(rec[178:201])
-            parsed_address = usaddress.parse(incode_address)
+            logging.debug("incode raw rec: {}".format(incode_address))
 
-            add_number = None
-            st_type = None
-            st_name = None
-            st_prefix = None
-            add_unit = None
+            if incode_address in INCODE_ADDRESS_EXCEPTIONS:
+                exception_dict = INCODE_ADDRESS_EXCEPTIONS.get(incode_address)
+                for key in exception_dict:
+                    address_dict[key] = exception_dict.get(key)
+                    address_dict["city"] = "EL CAMPO"
+                    address_dict["zip"] = "77437"
+                    address_dict["source"] = "INCODE"
+                    address_dict["full_addr"] = ec_addresses.full_address(address_dict)
 
-            for tuple in parsed_address:
-                value, name = tuple
-                if name == "StreetNamePostType":
-                    st_type = ec_util.to_upper_or_none(value)
-                elif name == "AddressNumber":
-                    add_number = ec_util.to_pos_int_or_none(value)
-                elif name == "StreetNamePreDirectional":
-                    st_prefix = ec_util.to_upper_or_none(value)
-                elif name == "StreetName":
-                    st_name = ec_util.to_upper_or_none(value)
-                elif name == "OccupancyIdentifier":
-                    if value == "#":
-                        continue
-                    if add_unit:
-                        add_unit = add_unit + ec_util.to_upper_or_none(value)
-                    else:
-                        add_unit = ec_util.to_upper_or_none(value)
+                address_list.append(address_dict)
+                continue
 
-                address = ec_addresses.Address(add_number, st_prefix, st_name, st_type, None, add_unit, "EL CAMPO", "77437")
+            address_dict = ec_addresses.address_parcer(prefixes, incode_address)
+            if address_dict is None or address_dict.__len__() == 0:
+                continue
 
-            address_list.append(address)
+            address_dict["source"] = "INCODE"
+            address_dict["city"] = "EL CAMPO"
+            address_dict["zip"] = "77437"
+            address_dict["full_addr"] = ec_addresses.full_address(address_dict)
+
+            logging.debug("final address {}".format(address_dict))
+            logging.debug(" ")
+
+                # address = ec_addresses.Address(add_number, st_prefix, st_name, st_type, None, add_unit, "EL CAMPO", "77437")
+
+            address_list.append(address_dict)
 
         return address_list
 
     except IOError as e:
-        logging.error(e)
-        return
+        logging.error("read_incode_address() {}".format(e))
 
     finally:
         if open_file:
