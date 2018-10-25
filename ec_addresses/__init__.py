@@ -488,12 +488,12 @@ def load_starmap_streets(_from_workspace, _cleanup):
         #
         # Define Fields for starmap featureclass
         fc = arcpy.CreateFeatureclass_management(to_workspace + r"\HGAC", "starmap", "POLYLINE", "", "", "", sr_2278)
-        arcpy.AddField_management(fc, "pwid", "TEXT", "", "", 20, "PubWorks Id", "NON_NULLABLE")
-        arcpy.AddField_management(fc, "pwname", "TEXT", "", "", 50, "PubWorks Name", "NON_NULLABLE")
+        arcpy.AddField_management(fc, "pwid", "TEXT", "", "", 32, "PubWorks Id", "NON_NULLABLE")
+        arcpy.AddField_management(fc, "pwname", "TEXT", "", "", 64, "PubWorks Name", "NON_NULLABLE")
         arcpy.AddField_management(fc, "st_predir", "TEXT", "", "", 9, "Street Prefix", "NULLABLE")
         arcpy.AddField_management(fc, "st_name", "TEXT", "", "", 50, "Street Name", "NULLABLE")
-        arcpy.AddField_management(fc, "st_fullname", "TEXT", "", "", 50, "Full Street Name", "NULLABLE")
         arcpy.AddField_management(fc, "st_type", "TEXT", "", "", 4, "Street Type", "NULLABLE")
+        arcpy.AddField_management(fc, "st_fullname", "TEXT", "", "", 50, "Full Street Name", "NULLABLE")
         arcpy.AddField_management(fc, "from_addr_l", "LONG", "", "", "", "From Left Block #", "NON_NULLABLE")
         arcpy.AddField_management(fc, "to_addr_l", "LONG", "", "", "", "To Left Block #", "NON_NULLABLE")
         arcpy.AddField_management(fc, "from_addr_r", "LONG", "", "", "", "From Right Block #", "NON_NULLABLE")
@@ -513,10 +513,13 @@ def load_starmap_streets(_from_workspace, _cleanup):
         from_fields = ["St_PreDir", "StreetName", "Full_Name", "ST_POSTYP", "FromAddr_L", "ToAddr_L", "FromAddr_R", "ToAddr_R", "SOURCE", "GLOBALID", "SHAPE@", "OBJECTID", "PostComm_L"]
         from_fc = _from_workspace + os.sep + "hgac_starmap"
 
-        blocks = []
+        blocks_list = list()
         counter = 0
+
         with arcpy.da.SearchCursor(from_fc, from_fields, sql_clause=(None, 'ORDER BY StreetName, FromAddr_L, FromAddr_R')) as cursor:
+
             for row in cursor:
+
                 str_predir = ec_util.to_upper_or_none(row[0])
                 name = ec_util.to_upper_or_none(row[1])
                 if not name:
@@ -524,34 +527,44 @@ def load_starmap_streets(_from_workspace, _cleanup):
 
                 full_name = ec_util.to_upper_or_none(row[2])
                 st_type = ec_util.to_upper_or_none(row[3])
+                #
+                # street block ranges
                 from_addr_l = ec_util.to_pos_int_or_none(row[4])
-                to_addr_l = ec_util.to_pos_int_or_none(row[5])
-                from_addr_r = ec_util.to_pos_int_or_none(row[6])
-                to_addr_r = ec_util.to_pos_int_or_none(row[7])
-                if (len(str(counter)) + len(name)) > 19:
-                    pwid = name[0:(19 - len(str(counter)))] + "-" + str(counter)
-                else:
-                    pwid = name + "-" + str(counter)
-                counter = counter + 1
-
                 if from_addr_l:
-                    blocks.append(from_addr_l)
+                    blocks_list.append(from_addr_l)
+                to_addr_l = ec_util.to_pos_int_or_none(row[5])
                 if to_addr_l:
-                    blocks.append(to_addr_l)
+                    blocks_list.append(to_addr_l)
+                from_addr_r = ec_util.to_pos_int_or_none(row[6])
                 if from_addr_r:
-                    blocks.append(from_addr_r)
+                    blocks_list.append(from_addr_r)
+                to_addr_r = ec_util.to_pos_int_or_none(row[7])
                 if to_addr_r:
-                    blocks.append(to_addr_r)
-                if len(blocks) > 2:
-                    pwname = str(min(blocks)) + "-" + str(max(blocks)) + " " + full_name
-                else:
+                    blocks_list.append(to_addr_r)
+
+                if blocks_list.__len__() == 0:
+                    continue
+
+                min_block = min(blocks_list)
+                max_block = max(blocks_list)
+                mean_block = round(int((min_block + max_block) / 2),-1)
+                blocks_list = list()
+
+                pwid = str(mean_block) + "-" + full_name
+                if pwid.__len__() > 32:
+                    print(pwid)
+                    pwid = name
+
+                pwname = str(min_block) + "-" + str(max_block) + " " + full_name
+                if pwname.__len__() > 64:
+                    print(pwname)
                     pwname = full_name
-                blocks = []
 
                 source = ec_util.to_upper_or_none(row[8])
                 global_id = row[9]
                 shape = row[10]
                 city = ec_util.to_upper_or_none(row[12])
+
                 insert_cursor.insertRow((pwid, pwname, str_predir, name, full_name, st_type, from_addr_l, to_addr_l, from_addr_r, to_addr_r, source, global_id, shape, city))
 
     except psycopg2.Error as e:

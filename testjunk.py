@@ -1,12 +1,7 @@
 from collections import defaultdict
 
-from ec_addresses import sql_get_unique_street_name
+min_block = 199
+max_block = 299
+mean_block = round(int((min_block + max_block) / 2),-1)
 
-name = "LIBERTY"
-prefix = "S"
-type = None
-
-# prefixes = get_all_street_prefix_alias()
-
-address_dict = sql_get_unique_street_name(prefix, name, type)
-print(address_dict)
+print(mean_block)
