@@ -1,5 +1,5 @@
-CREATE TABLE address.unique_full_street_names AS 
-SELECT DISTINCT(st_fullname) AS full_address, st_name AS streetname, st_predir AS st_predir, st_type AS st_postype
-FROM sde.starmap
+DROP VIEW IF EXISTS address.view_unique_street_names;
+CREATE VIEW address.view_unique_street_nams AS
+SELECT DISTINCT(st_name) AS st_name, st_full_name as st_full_name, st_prefix AS st_prefix, st_type AS st_type
+FROM address.address_911
 WHERE 'EL CAMPO' = city;
-ALTER TABLE address.unique_full_street_names ADD CONSTRAINT full_street_names_pkey PRIMARY KEY (full_address);

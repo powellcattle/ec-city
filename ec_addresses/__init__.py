@@ -4,7 +4,6 @@ from collections import defaultdict
 
 from frozendict import frozendict
 
-import ec_addresses
 import ec_incode
 
 __author__ = 'spowell'
@@ -22,6 +21,18 @@ import ec_hashmap
 import ec_psql_util
 import ec_util
 
+ADDRESS_LABELS = [
+    'add_number',
+    'st_prefix', #6
+    'st_name', #50
+    'st_type', #4
+    'add_unit', #20
+    'st_full_name', #50
+    'add_address', #60
+    'city', #40
+    'zip', #5
+    'source' #40
+]
 
 class Address:
     add_number = None
@@ -126,52 +137,34 @@ class Address:
         return _tmp_full
 
 
-STREET_NAME_REPLACEMENTS = frozendict({
-    'FIRST': '1ST',
-    'SECOND': '2ND',
-    'THIRD': '3RD',
-    'FOURTH': '4TH',
-    'FIFTH': '5TH',
-    'SIXTH': '6TH',
-    'SEVENTH': '7TH',
-    'EIGHTH': '8TH',
-    'NINTH': '9TH',
-    'LILY': 'LILLY',
-    'MC GREW': 'MCGREW',
-    'WILLIAMS': 'WILLIAM',
-    'SONOTA': 'SONATA',
-    'MECHANIS': 'MECHANIC',
-    'AVENUE': 'AVE',
-    'BECKEY': 'BECKY',
-    'TOWN AND COUNTRY': 'TOWN & COUNTRY',
-    'MAPLE': 'MABLE'
-})
+def full_street_name(_address_dict):
+    logging.debug("full_street_name: {}".format(_address_dict))
 
+    full_street_name = None
+    if _address_dict["str_prefix"]:
+        full_street_name = _address_dict["str_prefix"]
+
+    if _address_dict["st_name"]:
+        if full_street_name is None:
+            full_street_name = _address_dict["st_name"]
+        else:
+            full_street_name = " ".join([full_street_name, _address_dict["st_name"]])
+
+    if _address_dict["st_type"]:
+        full_street_name = " ".join([full_street_name, _address_dict["st_type"]])
+
+    return full_street_name
 
 def full_address(_address_dict):
     logging.debug("full_address: {}".format(_address_dict))
-    """
 
-    :type _address_dict: defaultdict
-    """
-    full_add: str = str(_address_dict["add_number"])
+    _full_address = full_street_name(_address_dict)
+    _full_address = " ".join([str(_address_dict["add_number"]).strip(),_full_address])
 
-    if _address_dict["st_predir"]:
-        full_add = full_add + ' ' + _address_dict["st_predir"]
+    if _address_dict["add_unit"]:
+        _full_address = " # ".join([_full_address, _address_dict["add_unit"]])
 
-    if _address_dict["street_name"]:
-        full_add = full_add + ' ' + _address_dict["street_name"]
-
-    if _address_dict["st_posdir"]:
-        full_add = full_add + ' ' + _address_dict["st_posdir"]
-
-    if _address_dict["st_postype"]:
-        full_add = full_add + ' ' + _address_dict["st_postype"]
-
-    if _address_dict["unit"]:
-        full_add = full_add + ' ' + _address_dict["unit"]
-
-    return full_add
+    return _full_address
 
 
 def find_st_type(_con, _add_number, _st_prefix, _st_name):
@@ -232,19 +225,19 @@ def sql_insert_address(_con, _address_dict, _sql_insert):
         cur = _con.cursor()
         cur.execute(_sql_insert, [
             _address_dict["add_number"],
-            _address_dict["st_predir"],
-            _address_dict["street_name"],
-            _address_dict["st_posdir"],
-            _address_dict["st_postype"],
-            _address_dict["unit"],
-            _address_dict["full_addr"],
-            _address_dict["source"],
-            _address_dict["zip"],
+            _address_dict["st_prefix"],
+            _address_dict["st_name"],
+            _address_dict["st_type"],
+            _address_dict["add_unit"],
+            _address_dict["st_full_name"],
+            _address_dict["add_address"],
             _address_dict["city"],
-            _address_dict["full_addr"]])
+            _address_dict["zip"],
+            _address_dict["source"],
+            _address_dict["st_full_name"]])
 
     except psycopg2.Error as e:
-        logging.error("sql_insert_address (database):".format(e))
+        logging.error("sql_insert_address (database):{}".format(e))
 
 
 def setup_CAD_addresses_table(_con):
@@ -345,22 +338,22 @@ def setup_not_found_address_table(_con):
 
 
 def setup_e911_addresses_tables(_con):
-    SQL_DROP_ADDRESSES = "DROP TABLE IF EXISTS address.address_911"
+
+    SQL_DROP_ADDRESSES = "DROP TABLE IF EXISTS address.address_911 CASCADE"
     SQL_CREATE_ADDRESSES = "CREATE TABLE address.address_911(" \
-                           "address_911_id SERIAL4 NOT NULL, " \
-                           "add_number INT NOT NULL, " \
-                           "st_prefix CHARACTER(9) NULL, " \
-                           "st_name VARCHAR(100) NOT NULL, " \
-                           "st_suffix VARCHAR(5) NULL, " \
-                           "st_type VARCHAR(10) NULL, " \
-                           "add_unit VARCHAR(20) NULL, " \
-                           "add_full VARCHAR(50) NOT NULL, " \
-                           "add_source VARCHAR(20) NOT NULL, " \
-                           "add_zip CHARACTER(5) NULL, " \
-                           "add_city VARCHAR(25) NULL, " \
-                           "fuzzy CHARACTER(4) NULL, " \
-                           "CONSTRAINT unique_address_911_pkey PRIMARY KEY (address_911_id), " \
-                           "CONSTRAINT address_911_name_idx UNIQUE (add_full, add_unit))"
+                           "id SERIAL4 NOT NULL," \
+                           "add_number INT NOT NULL," \
+                           "st_prefix CHARACTER(6) NULL," \
+                           "st_name VARCHAR(50) NOT NULL," \
+                           "st_type VARCHAR(4) NULL," \
+                           "add_unit VARCHAR(20) NULL," \
+                           "st_full_name VARCHAR(50) NOT NULL," \
+                           "add_address VARCHAR(60) NOT NULL," \
+                           "city VARCHAR(40) NOT NULL," \
+                           "zip CHARACTER(5) NULL," \
+                           "source VARCHAR(40) NULL," \
+                           "fuzzy CHARACTER(4) NULL," \
+                           "CONSTRAINT address_911_pkey PRIMARY KEY (id), CONSTRAINT address_911_constraint UNIQUE (add_address))"
 
     try:
         cur = _con.cursor()
@@ -435,18 +428,18 @@ def setup_addresses_E911_table(_con):
     SQL_CREATE_ADDRESSES = "CREATE TABLE address.address_911(" \
                            "address_911_id SERIAL4 NOT NULL, " \
                            "add_number INT NOT NULL, " \
-                           "st_prefix CHARACTER(1) NULL, " \
-                           "st_name VARCHAR(100) NOT NULL, " \
-                           "st_suffix VARCHAR(5) NULL, " \
-                           "st_type VARCHAR(10) NULL, " \
+                           "st_prefix CHARACTER(6) NULL, " \
+                           "st_name VARCHAR(50) NOT NULL, " \
+                           "st_type VARCHAR(4) NULL, " \
                            "add_unit VARCHAR(20) NULL, " \
-                           "add_full VARCHAR(50) NOT NULL, " \
-                           "add_source VARCHAR(20) NOT NULL, " \
-                           "add_zip CHARACTER(5) NULL, " \
-                           "add_city VARCHAR(25) NULL, " \
+                           "st_full_name VARCHAR(50) NOT NULL, " \
+                           "add_address VARCHAR(60) NOT NULL, " \
+                           "city  VARCHAR(20) NOT NULL, " \
+                           "zip CHARACTER(5) NULL, " \
+                           "source VARCHAR(25) NULL, " \
                            "fuzzy CHARACTER(4) NULL, " \
                            "CONSTRAINT unique_address_911_pkey PRIMARY KEY (address_911_id), " \
-                           "CONSTRAINT address_911_name_idx UNIQUE (add_full, add_unit))"
+                           "CONSTRAINT address_911_name_idx UNIQUE (add_address))"
 
     try:
         cur = _con.cursor()
@@ -517,9 +510,7 @@ def load_starmap_streets(_from_workspace, _cleanup):
         counter = 0
 
         with arcpy.da.SearchCursor(from_fc, from_fields, sql_clause=(None, 'ORDER BY StreetName, FromAddr_L, FromAddr_R')) as cursor:
-
             for row in cursor:
-
                 str_predir = ec_util.to_upper_or_none(row[0])
                 name = ec_util.to_upper_or_none(row[1])
                 if not name:
@@ -547,7 +538,7 @@ def load_starmap_streets(_from_workspace, _cleanup):
 
                 min_block = min(blocks_list)
                 max_block = max(blocks_list)
-                mean_block = round(int((min_block + max_block) / 2),-1)
+                mean_block = round(int((min_block + max_block) / 2), -1)
                 blocks_list = list()
 
                 pwid = str(mean_block) + "-" + full_name
@@ -1630,7 +1621,7 @@ def load_parcel_addresses(_from_shapefile, _cleanup):
                 else:
                     continue
 
-                address_dict = address_parcer(prefixes, full_address(address_dict))
+                address_dict = address_parcer(prefixes, full_street_name(address_dict))
                 if address_dict is None:
                     #
                     # No match found - log un-matchable address
@@ -1642,7 +1633,7 @@ def load_parcel_addresses(_from_shapefile, _cleanup):
                     address_dict["city"] = city
                     address_dict["zip"] = zip
                     address_dict["source"] = "WHARTON CAD"
-                    address_dict["full_addr"] = full_address(address_dict)
+                    address_dict["full_addr"] = full_street_name(address_dict)
                     sql_insert_not_found_address(psql_connection, address_dict)
                     psql_connection = ec_psql_util.psql_connection()
                     continue
@@ -1688,7 +1679,7 @@ def load_parcel_addresses(_from_shapefile, _cleanup):
                     #
                     # a little house keeping by providing some address values
                     address_dict["source"] = "WHARTON CAD"
-                    address_dict["full_addr"] = full_address(address_dict)
+                    address_dict["full_addr"] = full_street_name(address_dict)
                     address_dict["city"] = city
                     address_dict["zip"] = zip
                     address_dict["point"] = centroid
@@ -1746,7 +1737,7 @@ def load_incode_addresses(_incode_file_path, _cleanup=True):
 
         for address_dict in address_dict_list:
             if address_dict is not None and address_dict.__len__() > 0:
-                address_dict["full_addr"] = full_address(address_dict)
+                address_dict["full_addr"] = full_street_name(address_dict)
                 ec_addresses.sql_insert_address(psql_connection, address_dict, SQL_INSERT_ADDRESSES_INCODE)
 
 
@@ -1768,9 +1759,8 @@ def load_incode_addresses(_incode_file_path, _cleanup=True):
 
 def load_e911_addresses(_from_workspace, _cleanup=True):
     edit = None
-    SQL_INSERT_ADDRESSES_911 = "INSERT INTO address.address_911(add_number, st_prefix, st_name, st_suffix, st_type, add_unit, add_full, add_source, add_zip, add_city, fuzzy) " \
-                               "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s)) ON CONFLICT ON " \
-                               "CONSTRAINT address_911_name_idx DO NOTHING"
+    SQL_INSERT_ADDRESSES_911 = "INSERT INTO address.address_911(add_number, st_prefix, st_name, st_type, add_unit, st_full_name, add_address, city, zip, source, fuzzy) " \
+                               "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s)) ON CONFLICT ON CONSTRAINT address_911_constraint DO NOTHING"
 
     try:
         #
@@ -1806,12 +1796,12 @@ def load_e911_addresses(_from_workspace, _cleanup=True):
         arcpy.AddField_management(fc, "add_number", "LONG", "", "", "", "House Number", "NON_NULLABLE")
         arcpy.AddField_management(fc, "st_prefix", "TEXT", "", "", 6, "Prefix", "NULLABLE")
         arcpy.AddField_management(fc, "st_name", "TEXT", "", "", 50, "Street Name", "NON_NULLABLE")
-        arcpy.AddField_management(fc, "st_suffix", "TEXT", "", "", 10, "Street Suffix", "NULLABLE")
         arcpy.AddField_management(fc, "st_type", "TEXT", "", "", 4, "Street Type", "NULLABLE")
         arcpy.AddField_management(fc, "add_unit", "TEXT", "", "", 20, "Unit", "NULLABLE")
-        arcpy.AddField_management(fc, "st_fullname", "TEXT", "", "", 50, "Full Street Name", "NON_NULLABLE")
-        arcpy.AddField_management(fc, "add_zip", "TEXT", "", "", 5, "ZIP", "NULLABLE")
-        arcpy.AddField_management(fc, "add_city", "TEXT", "", "", 40, "City", "NULLABLE")
+        arcpy.AddField_management(fc, "st_full_name", "TEXT", "", "", 50, "Full Street Name", "NON_NULLABLE")
+        arcpy.AddField_management(fc, "add_address", "TEXT", "", "", 60, "Full Address", "NON_NULLABLE")
+        arcpy.AddField_management(fc, "zip", "TEXT", "", "", 5, "ZIP", "NULLABLE")
+        arcpy.AddField_management(fc, "city", "TEXT", "", "", 40, "City", "NULLABLE")
         arcpy.AddField_management(fc, "source", "TEXT", "", "", 40, "Data Source", "NON_NULLABLE")
         arcpy.AddField_management(fc, "global_id", "GUID", "", "", 10, "Global ID", "NON_NULLABLE")
 
@@ -1823,8 +1813,8 @@ def load_e911_addresses(_from_workspace, _cleanup=True):
 
         #
         # feature class field list
-        fields_e911_address = ["add_number", "st_prefix", "st_name", "st_suffix", "st_type", "add_unit", "st_fullname", "add_zip", "add_city", "source", "global_id", "SHAPE@"]
-        insert_cursor = arcpy.da.InsertCursor("address911", fields_e911_address)
+        to_fc_fields = ["add_number", "st_prefix", "st_name", "st_type", "add_unit", "st_full_name", "add_address", "zip", "city", "source", "global_id", "SHAPE@"]
+        insert_cursor = arcpy.da.InsertCursor("address911", to_fc_fields)
 
         from_fields = ["ADD_NUMBER", "ST_PREDIR", "STREETNAME", "ST_POSTYP", "UNIT", "POST_COMM", "POST_CODE", "SOURCE", "GLOBALID", "SHAPE@"]
         from_fc = _from_workspace + os.sep + "hgac911_address"
@@ -1832,54 +1822,56 @@ def load_e911_addresses(_from_workspace, _cleanup=True):
         # Iterator over HGAC supplied feature class
         with arcpy.da.SearchCursor(from_fc, from_fields) as cursor:
             for row in cursor:
-                house_number = ec_util.to_pos_int_or_none(row[0])
+                address_dict = defaultdict(lambda: None)
+
+                address_dict["add_number"] = ec_util.to_pos_int_or_none(row[0])
                 #
                 # if no house number it can not be a valid address
-                if house_number is None:
+                if None is address_dict["add_number"]:
                     continue
-                prefix = ec_util.to_upper_or_none(row[1])
-                st_name = ec_util.to_upper_or_none(row[2])
+
+                address_dict["st_prefix"] = ec_util.to_upper_or_none(row[1])
+                address_dict["st_name"] = ec_util.to_upper_or_none(row[2])
                 #
                 # if no street name it can not be a valid address
-                if st_name is None:
+                if None is address_dict["st_name"]:
                     continue
-                st_type = ec_util.to_upper_or_none(row[3])
-                unit = ec_util.to_upper_or_none(row[4])
-                add_city = ec_util.to_upper_or_none(row[5])
-                add_zip = ec_util.to_upper_or_none(row[6])
-                source = ec_util.to_upper_or_none(row[7])
+
+                address_dict["st_type"] = ec_util.to_upper_or_none(row[3])
+                address_dict["add_unit"] = ec_util.to_upper_or_none(row[4])
+                address_dict["city"] = ec_util.to_upper_or_none(row[5])
+                address_dict["zip"] = ec_util.to_upper_or_none(row[6])
+                address_dict["source"] = ec_util.to_upper_or_none(row[7])
+                address_dict["st_full_name"] = full_street_name(address_dict)
+                address_dict["add_address"] = full_address(address_dict)
                 global_id = row[8]
                 point = row[9]
+                
 
-                address = Address(add_number=house_number, st_prefix=prefix, st_name=st_name, st_type=st_type, st_suffix=None, add_unit=unit, add_city=add_city, add_zip=add_zip)
-                insert_cursor.insertRow((address.add_number,
-                                         address.st_prefix,
-                                         address.st_name,
-                                         address.st_suffix,
-                                         address.st_type,
-                                         address.add_unit,
-                                         address.full_name(),
-                                         address.add_zip,
-                                         address.add_city,
-                                         source,
+                insert_cursor.insertRow((address_dict["add_number"],
+                                         address_dict["st_prefix"],
+                                         address_dict["st_name"],
+                                         address_dict["st_type"],
+                                         address_dict["add_unit"],
+                                         address_dict["st_full_name"],
+                                         address_dict["add_address"],
+                                         address_dict["zip"],
+                                         address_dict["city"],
+                                         address_dict["source"],
                                          global_id,
                                          point))
 
                 # Insert into Address schema
-                insert_address(psql_connection, address, source, SQL_INSERT_ADDRESSES_911)
-
-            #
-            # Create attribute index
-            table_name = "ec.sde.address911"
-            arcpy.AddIndex_management(table_name, ["st_fullname", "add_unit"], "address911_fc_unq_idx", "unique")
+                sql_insert_address(psql_connection,address_dict,SQL_INSERT_ADDRESSES_911)
 
     except psycopg2.Error as e:
+        logging.error(e)
         if psql_connection:
             psql_connection.rollback()
-        logging.error(e)
 
-    except:
-        logging.error(sys.exc_info()[1])
+
+    except Exception as e:
+        logging.error(e)
 
     finally:
         if psql_connection:

@@ -50,7 +50,7 @@ def read_incode_address(_incode_file_path):
                     address_dict["city"] = "EL CAMPO"
                     address_dict["zip"] = "77437"
                     address_dict["source"] = "INCODE"
-                    address_dict["full_addr"] = ec_addresses.full_address(address_dict)
+                    address_dict["full_addr"] = ec_addresses.full_street_name(address_dict)
 
                 address_list.append(address_dict)
                 continue
@@ -62,7 +62,7 @@ def read_incode_address(_incode_file_path):
             address_dict["source"] = "INCODE"
             address_dict["city"] = "EL CAMPO"
             address_dict["zip"] = "77437"
-            address_dict["full_addr"] = ec_addresses.full_address(address_dict)
+            address_dict["full_addr"] = ec_addresses.full_street_name(address_dict)
 
             logging.debug("final address {}".format(address_dict))
             logging.debug(" ")
