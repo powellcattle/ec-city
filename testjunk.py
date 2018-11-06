@@ -1,9 +1,5 @@
+from ec_addresses import address_parcer
 
+address_dict = address_parcer(None, "107 WEST CREEK")
 
-
-type = "E"
-name = "CALHOUN"
-
-st_name = " ".join([type,name])
-
-print(st_name)
+print(address_dict)

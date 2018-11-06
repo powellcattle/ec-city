@@ -1,3 +1,4 @@
+import re
 from collections import defaultdict
 
 from frozendict import frozendict
@@ -15,10 +16,12 @@ import ec_util
 import usaddress
 
 INCODE_ADDRESS_EXCEPTIONS = frozendict({
-    "515 E. FIRST .1": {"add_number": 515, "st_predir": "E", "street_name": "1ST"},
-    "111 AVE. D D": {"add_number": 111, "street_name": "AVE D"},
-    "23280 US 59 SOUTH": {"add_number": 23280, "street_name": "US 59"}
+    "AVE. F" : {"add_number": 515, "st_prefix": "E", "st_name": "1ST", "add_unit": "1"},
+    "515 E. FIRST .1": {"add_number": 515, "st_prefix": "E", "st_name": "1ST", "add_unit": "1"},
+    "111 AVE. D D": {"add_number": 111, "st_name": "AVE D", "add_unit": "D"},
+    "23280 US 59 SOUTH": {"add_number": 23280, "st_name": "US 59"}
 })
+
 
 def read_incode_address(_incode_file_path):
     open_file = None
@@ -28,6 +31,7 @@ def read_incode_address(_incode_file_path):
         incode_records = open_file.readlines()
         address_list = list()
         prefixes = ec_addresses.get_all_street_prefix_alias()
+        pattern = re.compile("\s")
 
         for rec in incode_records:
             #
@@ -41,19 +45,26 @@ def read_incode_address(_incode_file_path):
                 continue
             # address
             incode_address = ec_util.to_upper_or_none(rec[178:201])
+
+            result_split = pattern.split(incode_address)
+            if not result_split[0].isdigit():
+                continue
+
+
             logging.debug("incode raw rec: {}".format(incode_address))
 
             if incode_address in INCODE_ADDRESS_EXCEPTIONS:
                 exception_dict = INCODE_ADDRESS_EXCEPTIONS.get(incode_address)
                 for key in exception_dict:
                     address_dict[key] = exception_dict.get(key)
-                    address_dict["city"] = "EL CAMPO"
-                    address_dict["zip"] = "77437"
-                    address_dict["source"] = "INCODE"
-                    address_dict["full_addr"] = ec_addresses.full_street_name(address_dict)
-
+                address_dict["city"] = "EL CAMPO"
+                address_dict["zip"] = "77437"
+                address_dict["source"] = "INCODE"
+                address_dict["st_full_name"] = ec_addresses.full_street_name(address_dict)
+                address_dict["add_address"] = ec_addresses.full_address(address_dict)
                 address_list.append(address_dict)
                 continue
+
 
             address_dict = ec_addresses.address_parcer(prefixes, incode_address)
             if address_dict is None or address_dict.__len__() == 0:
@@ -62,16 +73,18 @@ def read_incode_address(_incode_file_path):
             address_dict["source"] = "INCODE"
             address_dict["city"] = "EL CAMPO"
             address_dict["zip"] = "77437"
-            address_dict["full_addr"] = ec_addresses.full_street_name(address_dict)
+            address_dict["st_full_name"] = ec_addresses.full_street_name(address_dict)
+            address_dict["add_address"] = ec_addresses.full_address(address_dict)
 
             logging.debug("final address {}".format(address_dict))
             logging.debug(" ")
 
-                # address = ec_addresses.Address(add_number, st_prefix, st_name, st_type, None, add_unit, "EL CAMPO", "77437")
-
             address_list.append(address_dict)
 
         return address_list
+
+    except Exception as e:
+        logging.error("read_incode_address() {}".format(e))
 
     except IOError as e:
         logging.error("read_incode_address() {}".format(e))
