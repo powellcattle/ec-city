@@ -1,0 +1,3 @@
+"id","account_id","item","purchase_date","amount","category","invoice","check_number","paid_date","payment_method","animal_id","purchased_from_contact_id","comments","created_at","updated_at","attachment","attachment_content_type","attachment_file_size"
+"618637","48210","Veterinarian","2013-10-28","112.73","","","","","","19607058","1346935","","2013-11-16 08:16:32 -0600","2013-11-16 08:16:32 -0600","","",""
+"812177","48210","Veterinarian","2015-01-05","350.93","Calving","254079","","2015-02-09","check","21818383","1600763","Aborted Calve Proceedure","2015-02-09 08:26:28 -0600","2015-02-09 08:26:28 -0600","","",""

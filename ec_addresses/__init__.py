@@ -243,8 +243,11 @@ def sql_insert_address(_con, _address_dict, _sql_insert):
             _address_dict["source"],
             _address_dict["st_full_name"]])
 
-    except psycopg2.Error as e:
-        logging.error("sql_insert_address (database):{}".format(e))
+    except (psycopg2.Error, psycopg2.DatabaseError, psycopg2.OperationalError)  as e:
+        logging.error("Fatal Error - sql_insert_address (database):{}".format(e))
+
+    except Exception as e:
+        logging.error("Fatal Error - sql_insert_address (database):{}".format(e))
 
 
 def setup_CAD_addresses_table(_con):
@@ -255,7 +258,7 @@ def setup_CAD_addresses_table(_con):
                            "st_prefix CHARACTER(6) NULL, " \
                            "st_name VARCHAR(50) NOT NULL, " \
                            "st_type VARCHAR(4) NULL, " \
-                           "add_unit VARCHAR(20) NULL, " \
+                           "add_unit VARCHAR(60) NULL, " \
                            "st_full_name VARCHAR(50) NOT NULL, " \
                            "add_address VARCHAR(60) NOT NULL, " \
                            "zip CHARACTER(5) NULL, " \
@@ -282,35 +285,24 @@ def setup_CAD_addresses_table(_con):
 
 
 def sql_insert_not_found_address(_con, _address):
-    SQL_INSERT_ADDRESSES = "INSERT INTO address.not_found_addresses(add_number,st_prefix,st_name,st_type,add_full,add_source,add_zip,add_city) " \
-                           "VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT ON " \
+    SQL_INSERT_ADDRESSES = "INSERT INTO address.not_found_addresses(add_number,st_prefix,st_name,st_type,st_full_name,add_address,city,zip,source) " \
+                           "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT ON " \
                            "CONSTRAINT not_found_addresses_idx DO NOTHING"
-    try:
-        if _con is None:
-            logging.debug("Connection is None")
-            return
+    if _con is None:
+        logging.debug("Connection is None")
+        return
 
-        cur = _con.cursor()
-        cur.execute(SQL_INSERT_ADDRESSES, [
-            _address["add_number"],
-            _address["st_posttype"],
-            _address["street_name"],
-            _address["st_postype"],
-            _address["full_addr"],
-            _address["source"],
-            _address["zip"],
-            _address["city"]])
-
-
-    except psycopg2.Error as e:
-        if _con:
-            _con.rollback()
-            logging.error("insert_not_found_address: {}".format(e))
-
-    finally:
-        if _con:
-            _con.commit()
-            _con.close()
+    cur = _con.cursor()
+    cur.execute(SQL_INSERT_ADDRESSES, [
+        _address["add_number"],
+        _address["st_prefix"],
+        _address["st_name"],
+        _address["st_type"],
+        _address["st_full_name"],
+        _address["add_address"],
+        _address["city"],
+        _address["zip"],
+        _address["source"]])
 
 
 def setup_not_found_address_table(_con):
@@ -319,14 +311,15 @@ def setup_not_found_address_table(_con):
                            "id SERIAL4 NOT NULL, " \
                            "add_number INT NOT NULL, " \
                            "st_prefix CHARACTER(9) NULL, " \
-                           "st_name VARCHAR(100) NOT NULL, " \
+                           "st_name VARCHAR(50) NOT NULL, " \
                            "st_type VARCHAR(10) NULL, " \
-                           "add_full VARCHAR(50) NOT NULL, " \
-                           "add_source VARCHAR(20) NOT NULL, " \
-                           "add_zip CHARACTER(5) NULL, " \
-                           "add_city VARCHAR(25) NULL, " \
-                           "CONSTRAINT not_found_addresses_pkey PRIMARY KEY (id), " \
-                           "CONSTRAINT not_found_addresses_idx UNIQUE (add_full))"
+                           "st_full_name VARCHAR(50) NULL, " \
+                           "add_address VARCHAR(60) NULL, " \
+                           "city CHARACTER(40) NULL, " \
+                           "zip VARCHAR(5) NULL, " \
+                           "source VARCHAR(40) NULL, " \
+                           "CONSTRAINT not_found_addresses_pkey PRIMARY KEY (id)," \
+                           "CONSTRAINT not_found_addresses_idx UNIQUE (add_address))"
 
     try:
         cur = _con.cursor()
@@ -547,11 +540,11 @@ def load_starmap_streets(_from_workspace, _cleanup):
                 mean_block = round(int((min_block + max_block) / 2), -1)
                 blocks_list = list()
 
-                pwid = "-".join([full_name,str(mean_block)])
+                pwid = "-".join([full_name, str(mean_block)])
                 if pwid.__len__() > 32:
                     pwid = name
 
-                pwname = " ".join([full_name,"-".join([str(min_block),str(max_block)])])
+                pwname = " ".join([full_name, "-".join([str(min_block), str(max_block)])])
                 if pwname.__len__() > 64:
                     pwname = full_name
 
@@ -1633,9 +1626,7 @@ def load_incode_addresses():
 
 
 def load_parcel_addresses(_from_shapefile, _cleanup):
-    con = None
     edit = None
-    out_file = None
     SQL_INSERT_ADDRESSES = "INSERT INTO address.address_CAD(add_number, st_prefix, st_name, st_type, add_unit, st_full_name, add_address, city, zip, source, fuzzy) " \
                            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s)) ON CONFLICT ON " \
                            "CONSTRAINT addressCAD_name_idx DO NOTHING"
@@ -1708,6 +1699,7 @@ def load_parcel_addresses(_from_shapefile, _cleanup):
                 # create defaultdict to hold address values
                 # we want null values with invalid keys
                 address_dict = defaultdict(lambda: None)
+                address_dict["source"] = "WHARTONCAD"
 
                 prop_id = ec_util.to_pos_int_or_none(row[0])
                 if not prop_id:
@@ -1734,14 +1726,16 @@ def load_parcel_addresses(_from_shapefile, _cleanup):
                     address_dict["city"] = ec_util.to_upper_or_none(row[5])
 
                 if ec_util.to_pos_int_or_none(row[6]):
-                    address_dict["zip"] = ec_util.to_pos_int_or_none(row[6])
+                    address_dict["zip"] = str(ec_util.to_pos_int_or_none(row[6]))
 
                 if row[7]:
                     if row[7].centroid:
-                        centroid = row[7].centroid
+                        address_dict["point"] = row[7].centroid
                     else:
+                        # bad centroid
                         continue
                 else:
+                    # no geometry
                     continue
 
                 address_parced_dict = address_parcer(prefixes, full_address(address_dict))
@@ -1751,27 +1745,16 @@ def load_parcel_addresses(_from_shapefile, _cleanup):
                     address_dict["st_full_name"] = full_street_name(address_dict)
                     address_dict["add_address"] = full_address(address_dict)
                     sql_insert_not_found_address(psql_connection, address_dict)
-                    psql_connection = ec_psql_util.psql_connection()
                     continue
 
-                if address_parced_dict.__len__() > 0 and address_parced_dict["add_number"] and address_parced_dict["street_name"]:
-                    # street name exceptions
-                    if "EAST" == address_parced_dict["st_name"] or "SOUTH" == address_parced_dict["st_name"]:
-                        address_parced_dict["st_type"] = "ST"
-                        if "st_type" in address_parced_dict:
-                            del address_parced_dict["st_type"]
-                    elif "WEST" == address_parced_dict["st_name"]:
-                        address_parced_dict["st_type"] = "ST"
-                        if "E" != address_parced_dict["st_prefix"] or "W" != address_parced_dict["st_prefix"]:
-                            logging.error("Street {} has wrong prefix".format(address_parced_dict["st_full_name"]))
-                            continue
+                if address_parced_dict.__len__() > 0 and address_parced_dict["add_number"] and address_parced_dict["st_name"]:
 
-                    address_parced_dict["source"] = "WHARTON CAD"
+                    address_parced_dict["source"] = address_dict["source"]
                     address_parced_dict["st_full_name"] = full_street_name(address_parced_dict)
                     address_parced_dict["add_address"] = full_address(address_parced_dict)
-                    # address_parced_dict["city"] = city
-                    address_parced_dict["zip"] = zip
-                    address_parced_dict["point"] = centroid
+                    address_parced_dict["city"] = address_dict["city"]
+                    address_parced_dict["zip"] = address_dict["zip"]
+                    address_parced_dict["point"] = address_dict["point"]
 
                     sql_insert_address(psql_connection, address_parced_dict, SQL_INSERT_ADDRESSES)
 
@@ -1779,7 +1762,6 @@ def load_parcel_addresses(_from_shapefile, _cleanup):
                                              address_parced_dict["add_number"],
                                              address_parced_dict["st_prefix"],
                                              address_parced_dict["st_name"],
-                                             None,
                                              address_parced_dict["st_type"],
                                              address_parced_dict["add_unit"],
                                              address_parced_dict["st_full_name"],
@@ -1791,14 +1773,13 @@ def load_parcel_addresses(_from_shapefile, _cleanup):
 
 
     except arcpy.ExecuteError as e:
-        logging.error("load_parcel_addresses: {}".format(arcpy.GetMessage(0)))
-        logging.error("load_parcel_addresses: {}".format(e))
+        logging.error("FATAL ERROR in load_parcel_addresses: {}".format(e))
 
-    except psycopg2.Error as e:
-        logging.error("load_parcel_addresses: {}".format(e))
+    except (psycopg2.Error, psycopg2.DatabaseError, psycopg2.OperationalError)  as e:
+        logging.error("FATAL ERROR in load_parcel_addresses(database): {}".format(e))
 
     except Exception as e:
-        logging.error("load_parcel_addresses: {}".format(e))
+        logging.error("FATAL ERROR in load_parcel_addresses: {}".format(e))
 
     finally:
         if psql_connection:
@@ -1828,10 +1809,11 @@ def create_unique_tables():
     SQL_INSERT_UNIQUE_STREETS = "INSERT INTO address.unique_street_names(st_prefix, st_name, st_type, st_full_name, city, fuzzy) " \
                                 "VALUES (%s,%s,%s,%s,%s,soundex(%s)) ON CONFLICT ON CONSTRAINT unique_street_names_idx DO NOTHING"
 
-    SQL_QUERY_UNIQUE_STREETS_STARMAP = "SELECT DISTINCT(st_fullname), st_predir, st_name, st_type, city FROM sde.starmap WHERE city = 'EL CAMPO'"
-
+    SQL_QUERY_UNIQUE_STREETS_STARMAP = "SELECT DISTINCT(st_fullname), st_predir, st_name, st_type, city FROM sde.starmap"
 
     SQL_QUERY_UNIQUE_STREETS_911 = "SELECT DISTINCT(st_full_name), st_prefix, st_name, st_type, city FROM address.address_911 WHERE city = 'EL CAMPO'"
+
+    SQL_QUERY_UNIQUE_STREETS_CAD = "SELECT DISTINCT(st_full_name), st_prefix, st_name, st_type, city FROM address.address_cad WHERE city = 'EL CAMPO'"
 
     try:
         #
@@ -1851,7 +1833,7 @@ def create_unique_tables():
                 row[3],  # st_type
                 row[0],  # full name
                 row[4],  # city
-                row[2]   # fuzzy
+                row[2]  # fuzzy
             ])
 
         cur.execute(SQL_QUERY_UNIQUE_STREETS_911)
@@ -1863,18 +1845,31 @@ def create_unique_tables():
                 row[3],  # st_type
                 row[0],  # full name
                 row[4],  # city
-                row[2]   # fuzzy
+                row[2]  # fuzzy
+            ])
+
+        cur.execute(SQL_QUERY_UNIQUE_STREETS_CAD)
+        rows = cur.fetchall()
+        for row in rows:
+            cur.execute(SQL_INSERT_UNIQUE_STREETS, [
+                row[1],  # str_pre
+                row[2],  # st_name
+                row[3],  # st_type
+                row[0],  # full name
+                row[4],  # city
+                row[2]  # fuzzy
             ])
 
 
 
     except psycopg2.Error as e:
-        logging.error("load_parcel_addresses: {}".format(e))
+        logging.error("create_unique_tables: {}".format(e))
 
     except Exception as e:
-        logging.error("load_parcel_addresses: {}".format(e))
+        logging.error("create_unique_tables: {}".format(e))
 
     finally:
+        logging.error("completed create_unique_tables")
         if psql_connection:
             psql_connection.commit()
             psql_connection.close()

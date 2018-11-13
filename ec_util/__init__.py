@@ -112,17 +112,20 @@ def to_pos_long_or_none(_str):
     :return: long value
     """
     try:
-        lng = long(_str)
+        lng = int(_str)
     except ValueError:
         return None
     else:
         return lng
 
 
-def to_upper_or_none(_str):
+
+def to_upper_or_none(_str: str) -> str:
     # type: (str) -> str
     """
     Converts string to uppercase
+    :return:
+    :rtype: str
     :param _str: The string to be converted
     :return: uppercase string
     """
