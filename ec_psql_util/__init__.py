@@ -1,8 +1,8 @@
 __author__ = 'spowell'
-import psycopg2
 import logging
 import socket
-import ec_addresses
+
+import psycopg2
 
 
 def psql_connection(_database=r"ec", _user=r"sde", _password=r"sde", _host=r"localhost", _port=r"5432",
@@ -39,9 +39,6 @@ def psql_connection(_database=r"ec", _user=r"sde", _password=r"sde", _host=r"loc
 
     except psycopg2.Error as e:
         logging.error(e)
-        db=None
+        db = None
 
     return db
-
-
-

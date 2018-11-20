@@ -27,59 +27,60 @@ def read_incode_address(_incode_file_path):
     open_file = None
 
     try:
-        open_file = open(_incode_file_path)
-        incode_records = open_file.readlines()
+        # open_file = open(_incode_file_path)
+        # incode_records = open_file.readlines()
         address_list = list()
         prefixes = ec_addresses.get_all_street_prefix_alias()
         pattern = re.compile("\s")
 
-        for rec in incode_records:
-            #
-            # create defaultdict to hold address values
-            # we want null values with invalid keys
-            address_dict = defaultdict(lambda: None)
+        # for rec in incode_records:
+        with open(_incode_file_path) as incode_records:
+            for rec in incode_records:
+                #
+                # create defaultdict to hold address values
+                # we want null values with invalid keys
+                address_dict = defaultdict(lambda: None)
 
-            # miu
-            miu = ec_util.to_pos_int_or_none(rec[28:38])
-            if miu is None:
-                continue
-            # address
-            incode_address = ec_util.to_upper_or_none(rec[178:201])
+                # miu
+                miu = ec_util.to_pos_int_or_none(rec[28:38])
+                if miu is None:
+                    continue
+                # address
+                incode_address = ec_util.to_upper_or_none(rec[178:201])
 
-            result_split = pattern.split(incode_address)
-            if not result_split[0].isdigit():
-                continue
+                result_split = pattern.split(incode_address)
+                if not result_split[0].isdigit():
+                    continue
+
+                logging.debug("incode raw rec: {}".format(incode_address))
+
+                if incode_address in INCODE_ADDRESS_EXCEPTIONS:
+                    exception_dict = INCODE_ADDRESS_EXCEPTIONS.get(incode_address)
+                    for key in exception_dict:
+                        address_dict[key] = exception_dict.get(key)
+                    address_dict["city"] = "EL CAMPO"
+                    address_dict["zip"] = "77437"
+                    address_dict["source"] = "INCODE"
+                    address_dict["st_full_name"] = ec_addresses.full_street_name(address_dict)
+                    address_dict["add_address"] = ec_addresses.full_address(address_dict)
+                    address_list.append(address_dict)
+                    continue
 
 
-            logging.debug("incode raw rec: {}".format(incode_address))
+                address_dict = ec_addresses.address_parcer(prefixes, incode_address)
+                if address_dict is None or address_dict.__len__() == 0:
+                    continue
 
-            if incode_address in INCODE_ADDRESS_EXCEPTIONS:
-                exception_dict = INCODE_ADDRESS_EXCEPTIONS.get(incode_address)
-                for key in exception_dict:
-                    address_dict[key] = exception_dict.get(key)
+                address_dict["source"] = "INCODE"
                 address_dict["city"] = "EL CAMPO"
                 address_dict["zip"] = "77437"
-                address_dict["source"] = "INCODE"
                 address_dict["st_full_name"] = ec_addresses.full_street_name(address_dict)
                 address_dict["add_address"] = ec_addresses.full_address(address_dict)
+
+                logging.debug("final address {}".format(address_dict))
+                logging.debug(" ")
+
                 address_list.append(address_dict)
-                continue
-
-
-            address_dict = ec_addresses.address_parcer(prefixes, incode_address)
-            if address_dict is None or address_dict.__len__() == 0:
-                continue
-
-            address_dict["source"] = "INCODE"
-            address_dict["city"] = "EL CAMPO"
-            address_dict["zip"] = "77437"
-            address_dict["st_full_name"] = ec_addresses.full_street_name(address_dict)
-            address_dict["add_address"] = ec_addresses.full_address(address_dict)
-
-            logging.debug("final address {}".format(address_dict))
-            logging.debug(" ")
-
-            address_list.append(address_dict)
 
         return address_list
 
@@ -89,9 +90,9 @@ def read_incode_address(_incode_file_path):
     except IOError as e:
         logging.error("read_incode_address() {}".format(e))
 
-    finally:
-        if open_file:
-            open_file.close()
+    # finally:
+    #     # if open_file:
+    #     #     open_file.close()
 
 
 def load_incode_readings(_incode_path, _workspace):

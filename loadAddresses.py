@@ -2,6 +2,7 @@ import logging
 
 import ec_addresses
 import ec_psql_util
+import ec_sql_server_util
 
 __author__ = 'spowell'
 
@@ -16,13 +17,31 @@ cad_shp = "data/WhartonCAD/Ownership.shp"
 incode_file_path = "data/incode/TMP_PC2HOST.TMP"
 
 
-ec_addresses.setup_not_found_address_table(ec_psql_util.psql_connection())
+# con = ec_sql_server_util.connect(driver=r"{SQL Server Native Client 11.0};",
+#                                  server="HOME-GIS\SQLEXPRESS;",
+#                                  database="ec;",
+#                                  trusted_connection="yes;",
+#                                  uid="HOME-GIS\\sde;pwd=sde;")
+
+
+# ec_addresses.setup_not_found_address_table(con)
+
+# con = ec_sql_server_util.connect(driver=r"{SQL Server Native Client 11.0};",
+#                                  server="HOME-GIS\SQLEXPRESS;",
+#                                  database="ec;",
+#                                  trusted_connection="yes;",
+#                                  uid="HOME-GIS\\sde;pwd=sde;")
 
 # HGAC Data Load
-ec_addresses.load_e911_addresses(hgac_gdb, True)
-# ec_addresses.load_starmap_streets(hgac_gdb, True)
-# ec_addresses.load_incode_addresses(incode_file_path, True)
-ec_addresses.load_parcel_addresses(cad_shp, True)
-ec_addresses.create_unique_tables()
+# ec_addresses.load_starmap_streets(hgac_gdb)
+# ec_addresses.load_e911_addresses(con, hgac_gdb, True)
+con = ec_sql_server_util.connect(driver=r"{SQL Server Native Client 11.0};",
+                                 server="HOME-GIS\SQLEXPRESS;",
+                                 database="ec;",
+                                 trusted_connection="yes;",
+                                 uid="HOME-GIS\\sde;pwd=sde;")
+ec_addresses.load_incode_addresses(con, incode_file_path, True)
+# ec_addresses.load_parcel_addresses(cad_shp, True)
+# ec_addresses.create_unique_tables()
 
 

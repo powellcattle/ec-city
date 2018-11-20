@@ -8,4 +8,3 @@ result = scourgify.normalize_address_record(add_string)
 
 # g = geocoder.bing(add_string,key=bing_api_key)
 # print (g.geojason)
-print(True)
