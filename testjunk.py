@@ -21,10 +21,24 @@ try:
                                      trusted_connection="yes;",
                                      uid="HOME-GIS\\sde;pwd=sde;")
 
-    sql = "SELECT DISTINCT(st_name), st_prefix, st_type FROM address.unique_street_names WHERE st_name = ? AND st_prefix = ?"
+    _streetname = 'CALHOUN'
+    _st_predir = 'E'
+    _st_postype = None
+    sql_list = list()
     cur = con.cursor()
-    sql_tuple = ("CALHOUN","E")
-    cur.execute(sql, sql_tuple)
+    sql_dict = dict()
+    sql = "SELECT DISTINCT(st_name), st_prefix, st_type FROM ec.address.unique_street_names WHERE st_name = ?"
+    sql_list.append(_streetname)
+
+    if _st_predir:
+        sql = sql + " AND st_prefix = ?"
+        sql_list.append(_st_predir)
+
+    if _st_postype:
+        sql = sql + " AND st_type = ?"
+        sql_list(_st_postype)
+
+    cur.execute(sql, sql_list)
     rows = cur.fetchall()
 
 

@@ -31,6 +31,7 @@ def read_incode_address(_incode_file_path):
         # incode_records = open_file.readlines()
         address_list = list()
         prefixes = ec_addresses.get_all_street_prefix_alias()
+
         pattern = re.compile("\s")
 
         # for rec in incode_records:

@@ -34,14 +34,24 @@ incode_file_path = "data/incode/TMP_PC2HOST.TMP"
 
 # HGAC Data Load
 # ec_addresses.load_starmap_streets(hgac_gdb)
+# con = ec_sql_server_util.connect(driver=r"{SQL Server Native Client 11.0};",
+#                                  server="HOME-GIS\SQLEXPRESS;",
+#                                  database="ec;",
+#                                  trusted_connection="yes;",
+#                                  uid="HOME-GIS\\sde;pwd=sde;")
 # ec_addresses.load_e911_addresses(con, hgac_gdb, True)
-con = ec_sql_server_util.connect(driver=r"{SQL Server Native Client 11.0};",
-                                 server="HOME-GIS\SQLEXPRESS;",
-                                 database="ec;",
-                                 trusted_connection="yes;",
-                                 uid="HOME-GIS\\sde;pwd=sde;")
-ec_addresses.load_incode_addresses(con, incode_file_path, True)
-# ec_addresses.load_parcel_addresses(cad_shp, True)
-# ec_addresses.create_unique_tables()
+# con = ec_sql_server_util.connect(driver=r"{SQL Server Native Client 11.0};",
+#                                  server="HOME-GIS\SQLEXPRESS;",
+#                                  database="ec;",
+#                                  trusted_connection="yes;",
+#                                  uid="HOME-GIS\\sde;pwd=sde;")
+# ec_addresses.load_incode_addresses(con, incode_file_path, True)
+# con = ec_sql_server_util.connect(driver=r"{SQL Server Native Client 11.0};",
+#                                  server="HOME-GIS\SQLEXPRESS;",
+#                                  database="ec;",
+#                                  trusted_connection="yes;",
+#                                  uid="HOME-GIS\\sde;pwd=sde;")
+# ec_addresses.load_parcel_addresses(con, cad_shp, True)
+ec_addresses.create_unique_tables()
 
 
