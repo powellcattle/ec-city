@@ -1861,11 +1861,9 @@ def load_animals(_file_name):
                 cur.execute(SQL_INSERT_ANIMAL, (
                     id,
                     ear_tag,
-
                     tag_number,
                     tag_year,
                     tag_color,
-
                     ear_tag_loc,
                     tattoo_left,
                     tattoo_right,
@@ -2176,16 +2174,12 @@ def write_sold(_sales, _year):
         file_name = "../data/cattle/rc_sales_" + str(_year) + ".csv"
         with open(file_name, "w") as csvfile:
             wr = csv.writer(csvfile, delimiter="\t", quotechar='"', quoting=csv.QUOTE_MINIMAL)
-
-            row = ["ID", "EAR TAG", "TYPE", "SEX", "DOB", "BREED", "SOLD YEAR", "SALE AMOUNT"]
-
-            wr.writerow(row)
+            # write csv cell headers
+            wr.writerow(["ID", "EAR TAG", "TYPE", "SEX", "DOB", "BREED", "SOLD YEAR", "SALE AMOUNT"])
 
             for sale in _sales:
                 if int(sale.year_sold) == _year:
-                    row = [sale.animal_id, sale.ear_tag, sale.animal_type, sale.animal_sex, sale.birth_year, sale.breed,
-                           sale.year_sold, sale.amount]
-                    wr.writerow(row)
+                    wr.writerow([sale.animal_id, sale.ear_tag, sale.animal_type, sale.animal_sex, sale.birth_year, sale.breed,sale.year_sold, sale.amount])
     finally:
         if csvfile:
             csvfile.close()

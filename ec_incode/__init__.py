@@ -2,7 +2,6 @@ import re
 from collections import defaultdict
 
 from frozendict import frozendict
-from scourgify import normalize_address_record
 
 import ec_addresses
 

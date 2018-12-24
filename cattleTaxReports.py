@@ -164,7 +164,7 @@ try:
 
 
 except psycopg2.DatabaseError, e:
-    print 'Error %s' % e
+    print('Error %s' % e)
     sys.exit(1)
 
 else:

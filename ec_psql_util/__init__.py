@@ -1,6 +1,7 @@
 __author__ = 'spowell'
 import logging
 import socket
+import inspect
 
 import psycopg2
 
@@ -12,7 +13,7 @@ def psql_connection(_database=r"ec", _user=r"sde", _password=r"sde", _host=r"loc
     password = _password
     host = _host
     port = _port
-    db = None
+
     if not host:
         if socket.gethostname() == "gis-development":
             database = r"ec"
@@ -38,7 +39,7 @@ def psql_connection(_database=r"ec", _user=r"sde", _password=r"sde", _host=r"loc
         db.set_session(readonly=_read_only, autocommit=False)
 
     except psycopg2.Error as e:
-        logging.error(e)
+        logging.error("{} {}".format(inspect.stack()[0][3], e))
         db = None
 
     return db
