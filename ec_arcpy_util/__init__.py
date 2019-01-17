@@ -13,8 +13,11 @@ def sde_workspace_via_host(_hostname=None):
     if _hostname == "gis":
         workspace = r"C:\Users\spowell\AppData\Roaming\ESRI\Desktop10.6\ArcCatalog\local.sde"
     elif _hostname == "home-gis":
-        workspace = r"C:\\Users\\spowell\\AppData\\Roaming\\Esri\\Desktop10.6\\ArcCatalog\\localhost-sql-server.sde"
-        # workspace = r"C:\\Users\\spowell\\AppData\\Roaming\\Esri\\Desktop10.6\\ArcCatalog\\localhost.sde"
+        # workspace = r"C:\\Users\\spowell\\AppData\\Roaming\\Esri\\Desktop10.6\\ArcCatalog\\localhost-sql-server.sde"
+        workspace = r"C:\\Users\\spowell\\AppData\\Roaming\\Esri\\Desktop10.6\\ArcCatalog\\localhost.sde"
+    elif _hostname == "powell-gis":
+        # workspace = r"C:\\Users\\spowell\\AppData\\Roaming\\Esri\\Desktop10.6\\ArcCatalog\\localhost-sql-server.sde"
+        workspace = r"C:\\Users\\spowell\\AppData\\Roaming\\Esri\\Desktop10.6\\ArcCatalog\\localhost.sde"
     return workspace
 
 

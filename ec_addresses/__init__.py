@@ -1,10 +1,11 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 import inspect
-import pyodbc
 import re
+import sys
 from collections import defaultdict
 
+import psycopg2
 from pyproj import Proj, transform
 
 import usaddress
@@ -14,9 +15,9 @@ import ec_incode
 import ec_sql_server_util
 from scourgify.exceptions import UnParseableAddressError
 
-from nonsql.address import MongoAddress
-from nonsql.location import Location
-from nonsql.coordinate import Coordinate
+from nosql.address import MongoAddress
+from nosql.location import Location
+from nosql.coordinate import Coordinate
 
 __author__ = 'spowell'
 
@@ -31,6 +32,18 @@ import arcpy
 import ec_arcpy_util
 import ec_psql_util
 import ec_util
+
+# setup global values
+psql_connection = ec_psql_util.psql_connection()
+cur = psql_connection.cursor()
+column_names = ("st_name", "st_prefix", "st_type", "city")
+sql = r"SELECT DISTINCT(st_name), TRIM(st_prefix), TRIM(st_type), TRIM(city) FROM ec.address.unique_street_names"
+cur.execute(sql)
+# el campo
+county_street_names = [dict(zip(column_names, row)) for row in cur.fetchall()]
+
+psql_connection.commit()
+psql_connection.close()
 
 ADDRESS_LABELS = [
     'add_number',
@@ -181,8 +194,8 @@ def full_address(_address_dict):
 
 
 # def find_st_type(_con, _add_number, _st_prefix, _st_name):
-#     SQL_QUERY_ST_TYPE_1 = "SELECT DISTINCT(st_type) FROM address.address_911 WHERE add_number = ? AND st_name = ?"
-#     SQL_QUERY_ST_TYPE_2 = "SELECT DISTINCT(st_type) FROM address.address_911 WHERE add_number = ? AND st_prefix = ? AND st_name = ?"
+#     SQL_QUERY_ST_TYPE_1 = "SELECT DISTINCT(st_type) FROM address.address_911 WHERE add_number = %s AND st_name = %s"
+#     SQL_QUERY_ST_TYPE_2 = "SELECT DISTINCT(st_type) FROM address.address_911 WHERE add_number = %s AND st_prefix = %s AND st_name = %s"
 #     try:
 #         if _con is None:
 #             logging.debug("Connection is None")
@@ -200,7 +213,7 @@ def full_address(_address_dict):
 #         else:
 #             return None
 #
-#     except pyodbc.Error as e:
+#     except psycopg2.Error as e:
 #         logging.error(e)
 
 
@@ -224,45 +237,35 @@ def insert_address(_con, _address, _source, _sql_insert):
             _address.add_city,
             _address.full_name()])
 
-    except pyodbc.Error as e:
+    except psycopg2.Error as e:
         logging.info("{} {}".format(inspect.stack()[0][3], e))
 
 
 def sql_insert_address(_con, _address_dict, _sql_insert):
-    logging.debug("sql_insert_address: {}, {}".format(_address_dict, _sql_insert))
-    try:
-        if _con is None:
-            logging.debug("Connection is None")
-            return
+    if _con is None:
+        logging.debug("Connection is None")
+        return
 
-        cur = _con.cursor()
+    cur = _con.cursor()
 
-        cur.execute(_sql_insert,
-                    _address_dict["add_number"],
-                    _address_dict["st_prefix"],
-                    _address_dict["st_name"],
-                    _address_dict["st_type"],
-                    _address_dict["add_unit"],
-                    _address_dict["st_full_name"],
-                    _address_dict["add_address"],
-                    _address_dict["city"],
-                    _address_dict["zip"],
-                    _address_dict["source"],
-                    _address_dict["st_full_name"])
-
-    except pyodbc.Error as e:
-        sqlstate = e.args[0]
-        if '23000' == sqlstate:
-            logging.info("{} {}".format(inspect.stack()[0][3], _address_dict["add_address"]))
-
-    except Exception as e:
-        logging.info("{} {}".format(inspect.stack()[0][3], e))
+    cur.execute(_sql_insert, [
+        _address_dict["add_number"],
+        _address_dict["st_prefix"],
+        _address_dict["st_name"],
+        _address_dict["st_type"],
+        _address_dict["add_unit"],
+        _address_dict["st_full_name"],
+        _address_dict["add_address"],
+        _address_dict["city"],
+        _address_dict["zip"],
+        _address_dict["source"],
+        _address_dict["st_full_name"]])
 
 
 def setup_CAD_addresses_table(_con):
     SQL_DROP_ADDRESSES = "DROP TABLE IF EXISTS address.address_CAD"
     SQL_CREATE_ADDRESSES = "CREATE TABLE address.address_CAD(" \
-                           "addressCAD_id INT IDENTITY NOT NULL, " \
+                           "addressCAD_id SERIAL NOT NULL, " \
                            "add_number INT NOT NULL, " \
                            "st_prefix CHARACTER(6) NULL, " \
                            "st_name VARCHAR(50) NOT NULL, " \
@@ -278,9 +281,9 @@ def setup_CAD_addresses_table(_con):
                            "CONSTRAINT addressCAD_name_idx UNIQUE (add_address))"
 
     try:
-        cur = _con.cursor()
-        cur.execute(SQL_DROP_ADDRESSES)
-        cur.execute(SQL_CREATE_ADDRESSES)
+        cursor = _con.cursor()
+        cursor.execute(SQL_DROP_ADDRESSES)
+        cursor.execute(SQL_CREATE_ADDRESSES)
 
     finally:
         if _con:
@@ -288,13 +291,16 @@ def setup_CAD_addresses_table(_con):
 
 
 def sql_insert_not_found_address(_con, _address):
-    SQL_INSERT_ADDRESSES = "INSERT INTO address.not_found_addresses(add_number,st_prefix,st_name,st_type,st_full_name,add_address,city,zip,source) VALUES (?,?,?,?,?,?,?,?,?)"
+    SQL_INSERT_ADDRESSES = "INSERT INTO address.not_found_addresses(add_number,st_prefix,st_name,st_type,st_full_name,add_address,city,zip,source) " \
+                           "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) " \
+                           "ON CONFLICT ON CONSTRAINT not_found_addresses_idx DO NOTHING"
+
     if _con is None:
         logging.debug("Connection is None")
         return
     try:
-        cur = _con.cursor()
-        cur.execute(SQL_INSERT_ADDRESSES, [
+        cursor = _con.cursor()
+        cursor.execute(SQL_INSERT_ADDRESSES, [
             _address["add_number"],
             _address["st_prefix"],
             _address["st_name"],
@@ -305,16 +311,14 @@ def sql_insert_not_found_address(_con, _address):
             _address["zip"],
             _address["source"]])
 
-    except pyodbc.Error as e:
-        sqlstate = e.args[0]
-        if '23000' == sqlstate:
-            logging.info("{} {}".format(inspect.stack()[0][3], _address["add_address"]))
+    except psycopg2.Error as e:
+        logging.error(f"{inspect.stack()[0][3]} {e}")
 
 
 def setup_not_found_address_table(_con):
     SQL_DROP_ADDRESSES = "DROP TABLE IF EXISTS address.not_found_addresses"
     SQL_CREATE_ADDRESSES = "CREATE TABLE address.not_found_addresses(" \
-                           "id INT IDENTITY NOT NULL, " \
+                           "id SERIAL NOT NULL, " \
                            "add_number INT NOT NULL, " \
                            "st_prefix CHARACTER(9) NULL, " \
                            "st_name VARCHAR(50) NOT NULL, " \
@@ -325,12 +329,12 @@ def setup_not_found_address_table(_con):
                            "zip VARCHAR(5) NULL, " \
                            "source VARCHAR(40) NULL, " \
                            "CONSTRAINT not_found_addresses_pkey PRIMARY KEY (id)," \
-                           "CONSTRAINT not_found_addresses_idx UNIQUE (add_address))"
+                           "CONSTRAINT not_found_addresses_idx UNIQUE (add_address, city))"
 
     try:
-        cur = _con.cursor()
-        cur.execute(SQL_DROP_ADDRESSES)
-        cur.execute(SQL_CREATE_ADDRESSES)
+        cursor = _con.cursor()
+        cursor.execute(SQL_DROP_ADDRESSES)
+        cursor.execute(SQL_CREATE_ADDRESSES)
 
     except Exception as e:
         if _con:
@@ -345,8 +349,8 @@ def setup_not_found_address_table(_con):
 
 def setup_e911_addresses_tables(_con):
     SQL_DROP_ADDRESSES = "DROP TABLE IF EXISTS address.address_911"
-    SQL_CREATE_ADDRESSES = "CREATE TABLE address.address_911(" \
-                           "id INT IDENTITY NOT NULL," \
+    SQL_CREATE_ADDRESSES = "  CREATE TABLE address.address_911(" \
+                           "id SERIAL NOT NULL," \
                            "add_number INT NOT NULL," \
                            "st_prefix CHARACTER(6) NULL," \
                            "st_name VARCHAR(50) NOT NULL," \
@@ -358,12 +362,16 @@ def setup_e911_addresses_tables(_con):
                            "zip CHARACTER(5) NULL," \
                            "source VARCHAR(40) NULL," \
                            "fuzzy CHARACTER(4) NULL," \
-                           "CONSTRAINT address_911_pkey PRIMARY KEY (id), CONSTRAINT address_911_constraint UNIQUE (add_address))"
+                           "CONSTRAINT address_911_pkey PRIMARY KEY (id), " \
+                           "CONSTRAINT address_911_constraint UNIQUE (add_address))"
 
     try:
-        cur = _con.cursor()
-        cur.execute(SQL_DROP_ADDRESSES)
-        cur.execute(SQL_CREATE_ADDRESSES)
+        cursor = _con.cursor()
+        cursor.execute(SQL_DROP_ADDRESSES)
+        cursor.execute(SQL_CREATE_ADDRESSES)
+
+    except psycopg2.Error as e:
+        logging.error(f"{inspect.stack()[0][3]} {e}")
 
     finally:
         if _con:
@@ -373,7 +381,7 @@ def setup_e911_addresses_tables(_con):
 def setup_addresses_incode_table(_con):
     SQL_DROP_ADDRESSES = "DROP TABLE IF EXISTS address.address_incode"
     SQL_CREATE_ADDRESSES = "CREATE TABLE address.address_incode(" \
-                           "address_incode_id INT IDENTITY NOT NULL, " \
+                           "address_incode_id SERIAL NOT NULL, " \
                            "add_number INT NOT NULL, " \
                            "st_prefix VARCHAR(5) NULL, " \
                            "st_name VARCHAR(50) NOT NULL, " \
@@ -389,9 +397,9 @@ def setup_addresses_incode_table(_con):
                            "CONSTRAINT address_incode_name_idx UNIQUE (add_full, add_unit))"
 
     try:
-        cur = _con.cursor()
-        cur.execute(SQL_DROP_ADDRESSES)
-        cur.execute(SQL_CREATE_ADDRESSES)
+        cursor = _con.cursor()
+        cursor.execute(SQL_DROP_ADDRESSES)
+        cursor.execute(SQL_CREATE_ADDRESSES)
 
     finally:
         if _con:
@@ -400,7 +408,7 @@ def setup_addresses_incode_table(_con):
 
 # def insert_incode(_con, _address, _source):
 #     SQL_INSERT_ADDRESSES_911 = "INSERT INTO address.address_911(add_number, st_name, st_suffix, st_type, add_unit, add_full, add_source, add_zip, add_city, fuzzy) " \
-#                                "VALUES (?,?,?,?,?,?,?,?,?,soundex(?)) ON CONFLICT ON " \
+#                                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s)) ON CONFLICT ON " \
 #                                "CONSTRAINT address_911_name_idx DO NOTHING"
 #     try:
 #         if _con is None:
@@ -412,20 +420,20 @@ def setup_addresses_incode_table(_con):
 #                                                _address.add_unit, _address.full_name(), _source, _address.add_zip, _address.add_city,
 #                                                _address.full_name()])
 #
-#     except pyodbc.Error as e:
+#     except psycopg2.Error as e:
 #         logging.error(e)
 
 
 def setup_addresses_E911_table(_con):
     SQL_DROP_ADDRESSES = "DROP TABLE IF EXISTS address.address_911"
     SQL_CREATE_ADDRESSES = "CREATE TABLE address.address_911(" \
-                           "address_911_id INT IDENTITY NOT NULL, " \
+                           "address_911_id SERIAL NOT NULL, " \
                            "add_number INT NOT NULL, " \
                            "st_prefix CHARACTER(6) NULL, " \
                            "st_name VARCHAR(50) NOT NULL, " \
                            "st_type VARCHAR(4) NULL, " \
                            "add_unit VARCHAR(20) NULL, " \
-                           "st_full_name VARCHAR(50) NOT NULL, " \
+                           "st_full_name VARCHAR(50) NOT NULL," \
                            "add_address VARCHAR(60) NOT NULL, " \
                            "city  VARCHAR(20) NOT NULL, " \
                            "zip CHARACTER(5) NULL, " \
@@ -435,11 +443,11 @@ def setup_addresses_E911_table(_con):
                            "CONSTRAINT address_911_name_idx UNIQUE (add_address))"
 
     try:
-        cur = _con.cursor()
-        cur.execute(SQL_DROP_ADDRESSES)
-        cur.execute(SQL_CREATE_ADDRESSES)
+        cursor = _con.cursor()
+        cursor.execute(SQL_DROP_ADDRESSES)
+        cursor.execute(SQL_CREATE_ADDRESSES)
 
-    except pyodbc.Error as e:
+    except psycopg2.Error as e:
         if _con:
             _con.rollback()
             logging.info("{} {}".format(inspect.stack()[0][3], e))
@@ -537,7 +545,7 @@ def load_starmap_streets(_from_workspace):
                 insert_cursor.insertRow((pwid, pwname, str_predir, name, full_name, st_type, from_addr_l, to_addr_l, from_addr_r, to_addr_r, source, global_id, shape, city))
 
     except Exception as e:
-        logging.error("{} {}".format(inspect.stack()[0][3], e))
+        logging.error(f"{inspect.stack()[0][3]} {e}")
 
     finally:
         if edit:
@@ -548,10 +556,10 @@ def load_starmap_streets(_from_workspace):
 
 # def load_unique_street_types():
 #     con = None
-#     SQL_INSERT = "INSERT INTO address.unique_street_types(street_type) VALUES (?)"
+#     SQL_INSERT = "INSERT INTO address.unique_street_types(street_type) VALUES (%s)"
 #     SQL_DROP = "DROP TABLE IF EXISTS address.unique_street_types "
 #     SQL_CREATE = "CREATE TABLE address.unique_street_types(" \
-#                  "id INT IDENTITY NOT NULL," \
+#                  "id SERIAL NOT NULL," \
 #                  "street_type VARCHAR(100) NOT NULL," \
 #                  "CONSTRAINT unique_street_types_pkey PRIMARY KEY (id))"
 #
@@ -577,7 +585,7 @@ def load_starmap_streets(_from_workspace):
 #                 cur.execute(SQL_INSERT, [street_type])
 #                 con.commit()
 #
-#     except pyodbc.Error as e:
+#     except psycopg2.Error as e:
 #         logging.error(e)
 #
 #     except OSError as e:
@@ -593,7 +601,7 @@ def load_starmap_streets(_from_workspace):
 #
 # def load_unique_street_type_aliases():
 #     con = None
-#     SQL_INSERT = "INSERT INTO address.unique_street_type_aliases(prefix,alias) VALUES (?,?)"
+#     SQL_INSERT = "INSERT INTO address.unique_street_type_aliases(prefix,alias) VALUES (%s,%s)"
 #     SQL_DROP = "DROP TABLE IF EXISTS address.unique_street_type_aliases "
 #     SQL_CREATE = "CREATE TABLE address.unique_street_type_aliases(" \
 #                  "prefix VARCHAR(100) NOT NULL," \
@@ -623,7 +631,7 @@ def load_starmap_streets(_from_workspace):
 #                 cur.execute(SQL_INSERT, (prefix, alias))
 #                 con.commit()
 #
-#     except pyodbc.Error as e:
+#     except psycopg2.Error as e:
 #         logging.error(e)
 #
 #     except OSError as e:
@@ -639,7 +647,7 @@ def load_starmap_streets(_from_workspace):
 #
 # def load_unique_prefix_aliases():
 #     con = None
-#     SQL_INSERT = "INSERT INTO address.unique_prefix_aliases(prefix,alias) VALUES (?,?)"
+#     SQL_INSERT = "INSERT INTO address.unique_prefix_aliases(prefix,alias) VALUES (%s,%s)"
 #     SQL_DROP = "DROP TABLE IF EXISTS address.unique_prefix_aliases "
 #     SQL_CREATE = "CREATE TABLE address.unique_prefix_aliases(" \
 #                  "prefix VARCHAR(100) NOT NULL," \
@@ -669,7 +677,7 @@ def load_starmap_streets(_from_workspace):
 #                 cur.execute(SQL_INSERT, (prefix, alias))
 #                 con.commit()
 #
-#     except pyodbc.Error as e:
+#     except psycopg2.Error as e:
 #         logging.error(e)
 #
 #     except OSError as e:
@@ -685,7 +693,7 @@ def load_starmap_streets(_from_workspace):
 
 # def load_unique_street_name_aliases():
 #     con = None
-#     SQL_INSERT = "INSERT INTO address.unique_street_name_aliases(name,alias) VALUES (?,?)"
+#     SQL_INSERT = "INSERT INTO address.unique_street_name_aliases(name,alias) VALUES (%s,%s)"
 #     SQL_DROP = "DROP TABLE IF EXISTS address.unique_street_name_aliases "
 #     SQL_CREATE = "CREATE TABLE address.unique_street_name_aliases(" \
 #                  "name VARCHAR(100) NOT NULL," \
@@ -715,7 +723,7 @@ def load_starmap_streets(_from_workspace):
 #                 cur.execute(SQL_INSERT, (name, alias))
 #                 con.commit()
 #
-#     except pyodbc.Error as e:
+#     except psycopg2.Error as e:
 #         logging.error(e)
 #
 #     except OSError as e:
@@ -731,10 +739,10 @@ def load_starmap_streets(_from_workspace):
 
 # def load_unique_full_street_names():
 #     con = None
-#     SQL_INSERT = "INSERT INTO address.unique_full_street_names(name,prefix,type) VALUES (?,?,?)"
+#     SQL_INSERT = "INSERT INTO address.unique_full_street_names(name,prefix,type) VALUES (%s,%s,%s)"
 #     SQL_DROP = "DROP TABLE IF EXISTS address.unique_full_street_names "
 #     SQL_CREATE = "CREATE TABLE address.unique_full_street_names(" \
-#                  "id INT IDENTITY NOT NULL," \
+#                  "id SERIAL NOT NULL," \
 #                  "name VARCHAR(100) NOT NULL," \
 #                  "prefix CHARACTER(1) NULL," \
 #                  "type VARCHAR(10) NULL," \
@@ -765,7 +773,7 @@ def load_starmap_streets(_from_workspace):
 #                 cur.execute(SQL_INSERT, (name, prefix, type))
 #                 con.commit()
 #
-#     except pyodbc.Error as e:
+#     except psycopg2.Error as e:
 #         logging.error(e)
 #
 #     except OSError as e:
@@ -781,10 +789,10 @@ def load_starmap_streets(_from_workspace):
 #
 # def load_unique_units():
 #     con = None
-#     SQL_INSERT = "INSERT INTO address.unique_units(name) VALUES (?)"
+#     SQL_INSERT = "INSERT INTO address.unique_units(name) VALUES (%s)"
 #     SQL_DROP = "DROP TABLE IF EXISTS address.unique_units "
 #     SQL_CREATE = "CREATE TABLE address.unique_units(" \
-#                  "id INT IDENTITY NOT NULL," \
+#                  "id SERIAL NOT NULL," \
 #                  "name VARCHAR(5) NOT NULL," \
 #                  "CONSTRAINT unique_units_pkey PRIMARY KEY (id))"
 #
@@ -810,7 +818,7 @@ def load_starmap_streets(_from_workspace):
 #                 cur.execute(SQL_INSERT, [unit])
 #                 con.commit()
 #
-#     except pyodbc.Error as e:
+#     except psycopg2.Error as e:
 #         logging.error(e)
 #
 #     except OSError as e:
@@ -826,10 +834,10 @@ def load_starmap_streets(_from_workspace):
 
 def load_exceptions():
     con = None
-    SQL_INSERT = "INSERT INTO address.street_exceptions(exception,name) VALUES (?,?)"
+    SQL_INSERT = "INSERT INTO address.street_exceptions(exception,name) VALUES (%s,%s)"
     SQL_DROP = "DROP TABLE IF EXISTS address.street_exceptions"
     SQL_CREATE = "CREATE TABLE address.street_exceptions(" \
-                 "id INT IDENTITY NOT NULL," \
+                 "id SERIAL NOT NULL," \
                  "exception VARCHAR(100) NOT NULL," \
                  "name VARCHAR(100) NOT NULL," \
                  "CONSTRAINT street_exceptions_pkey PRIMARY KEY (id))"
@@ -854,7 +862,7 @@ def load_exceptions():
                 cur.execute(SQL_INSERT, [name_exception, name])
                 con.commit()
 
-    except pyodbc.Error as e:
+    except psycopg2.Error as e:
         logging.info("{} {}".format(inspect.stack()[0][3], e))
 
     except OSError as e:
@@ -870,10 +878,10 @@ def load_exceptions():
 
 def load_unique_prefixes():
     con = None
-    SQL_INSERT = "INSERT INTO address.unique_prefixes(prefix) VALUES (?)"
+    SQL_INSERT = "INSERT INTO address.unique_prefixes(prefix) VALUES (%s)"
     SQL_DROP = "DROP TABLE IF EXISTS address.unique_prefixes "
     SQL_CREATE = "CREATE TABLE address.unique_prefixes(" \
-                 "id INT IDENTITY NOT NULL," \
+                 "id SERIAL NOT NULL," \
                  "prefix VARCHAR(100) NOT NULL," \
                  "CONSTRAINT unique_prefixes_pkey PRIMARY KEY (id))"
 
@@ -899,7 +907,7 @@ def load_unique_prefixes():
                 cur.execute(SQL_INSERT, [prefix])
                 con.commit()
 
-    except pyodbc.Error as e:
+    except psycopg2.Error as e:
         logging.error(e)
 
     except OSError as e:
@@ -925,7 +933,7 @@ def load_unique_prefixes():
 #             aliases.append(row[0])
 #         con.commit()
 #
-#     except pyodbc.Error as e:
+#     except psycopg2.Error as e:
 #         logging.error(e)
 #
 #     finally:
@@ -946,7 +954,7 @@ def load_unique_prefixes():
 #             street_types.append(row[0])
 #         con.commit()
 #
-#     except pyodbc.Error as e:
+#     except psycopg2.Error as e:
 #         logging.error(e)
 #
 #     finally:
@@ -981,7 +989,7 @@ def get_all_street_prefix_alias():
     #         ec_hashmap.set(prefixes, key, value)
     #     con.commit()
     #
-    # except pyodbc.Error as e:
+    # except psycopg2.Error as e:
     #     logging.error(e)
     #
     # finally:
@@ -1029,7 +1037,7 @@ def get_street_name_by_exception(_prefix, _exception_street_name):
         cur.execute(sql, {"_exception_street_name": exception_name})
         street_name = cur.fetchone()
         con.commit()
-    except pyodbc.Error as e:
+    except psycopg2.Error as e:
         logging.error(e)
 
     finally:
@@ -1055,7 +1063,7 @@ def sql_get_street_name_by_alias(_alias):
     except Exception as e:
         logging.error("sql_get_street_name_by_alias: {}".format(e))
 
-    except pyodbc.Error as e:
+    except psycopg2.Error as e:
         logging.error("sql_get_street_name_by_alias: {}".format(e))
 
     finally:
@@ -1064,87 +1072,153 @@ def sql_get_street_name_by_alias(_alias):
     return street_name
 
 
-def sql_get_unique_street_name(_st_predir=None, _streetname=None, _st_postype=None):
-    logging.debug("sql_get_unique_street_name: {}, {}".format(_st_predir, _streetname))
+def sql_get_unique_street_name(_st_prefix: str = None, _st_name: str = None, _st_type: str = None, _city: str = None):
     address_dict = defaultdict(lambda: None)
-    sql_list = list()
-    street_name_alias = ec_addresses.get_all_street_name_alias()
 
-    con = ec_sql_server_util.connect(driver=r"{SQL Server Native Client 11.0};",
-                                     server="HOME-GIS\SQLEXPRESS;",
-                                     database="ec;",
-                                     trusted_connection="yes;",
-                                     uid="HOME-GIS\\sde;pwd=sde;")
-    try:
-        sql = "SELECT DISTINCT(st_name), st_prefix, st_type FROM ec.address.unique_street_names WHERE st_name = ?"
-        sql_list.append(_streetname)
+    addresses_list = list()
+    # includes prefix, name, and type
+    if _st_prefix and _st_type and _st_name:
+        for row in county_street_names:
+            if _city == row.get("city") and _st_prefix == row.get("st_prefix") and _st_name == row.get("st_name") and _st_type == row.get("st_type"):
+                address_dict['st_prefix'] = row.get("st_prefix")
+                address_dict['st_name'] = row.get("st_name")
+                address_dict['st_type'] = row.get("st_type")
+                addresses_list.append(address_dict)
+                if addresses_list.__len__() == 1:
+                    return addresses_list[0]
 
-        if _st_predir:
-            sql = sql + " AND st_prefix = ?"
-            sql_list.append(_st_predir)
+    addresses_list = list()
+    if _st_prefix is None and _st_type is None:
+        for row in county_street_names:
+            if _city == row.get("city") and _st_name == row.get("st_name"):
+                address_dict['st_prefix'] = row.get("st_prefix")
+                address_dict['st_name'] = row.get("st_name")
+                address_dict['st_type'] = row.get("st_type")
+                addresses_list.append(address_dict)
+    if addresses_list.__len__() == 1:
+        return addresses_list[0]
 
-        if _st_postype:
-            sql = sql + " AND st_type = ?"
-            sql_list.append(_st_postype)
+    addresses_list = list()
+    if _st_prefix is None and _st_type:
+        for row in county_street_names:
+            if _city == row.get("city") and _st_name == row.get("st_name") and _st_type == row.get("st_type"):
+                address_dict['st_prefix'] = row.get("st_prefix")
+                address_dict['st_name'] = row.get("st_name")
+                address_dict['st_type'] = row.get("st_type")
+                addresses_list.append(address_dict)
+    if addresses_list.__len__() == 1:
+        return addresses_list[0]
 
-        cur = con.cursor()
-        cur.execute(sql, sql_list)
-        rows = cur.fetchall()
+    addresses_list = list()
+    if _st_type is None and _st_prefix:
+        for row in county_street_names:
+            if _city == row.get("city") and _st_name == row.get("st_name") and _st_prefix == row.get("st_prefix"):
+                address_dict['st_prefix'] = row.get("st_prefix")
+                address_dict['st_name'] = row.get("st_name")
+                address_dict['st_type'] = row.get("st_type")
+                addresses_list.append(address_dict)
+    if addresses_list.__len__() == 1:
+        return addresses_list[0]
 
-        if rows.__len__() == 0:
-            new_name = street_name_alias.get(_streetname, None)
-            if new_name:
-                sql = "SELECT DISTINCT(st_name), st_prefix, st_type FROM ec.address.unique_street_names WHERE st_name = ?"
-                sql_list.append(new_name)
+    return None
 
-                if _st_predir:
-                    sql = sql + " AND st_prefix = ?"
-                    sql_list.append(_st_predir)
 
-                if _st_postype:
-                    sql = sql + " AND st_type = ?"
-                    sql_list.append(_st_postype)
+#     for row in distict_street_names:
+#
+#         if _st_name == row.get("st_name") and _st_type == row.get("st_type") and _st_prefix == row.get("st_prefix"):
+#             address_dict['st_prefix'] = _st_prefix
+#             address_dict['st_name'] = _st_name
+#             address_dict['st_type'] = _st_type
+#             return address_dict
+#
+# street_name_alias = ec_addresses.get_all_street_name_alias()
+# new_name = street_name_alias.get(_st_name, None)
+# for row in distict_street_names:
+#     if new_name == row.get("st_name") and _st_type == row.get("st_type") and _st_prefix == row.get("st_prefix"):
+#         address_dict['st_prefix'] = _st_prefix
+#         address_dict['st_name'] = new_name
+#         address_dict['st_type'] = _st_type
+#         return address_dict
+#
+# return address_dict
 
-                cur = con.cursor()
-                cur.execute(sql, sql_list)
-                rows = cur.fetchall()
+# print(found_rows.__len__())
+#
+#
+#
+# if 351 == _streetname:
+#     pass
+# address_dict = defaultdict(lambda: None)
+# sql_list = list()
+# street_name_alias = ec_addresses.get_all_street_name_alias()
+#
+# try:
+#     sql = "SELECT DISTINCT(st_name), st_prefix, st_type FROM ec.address.unique_street_names WHERE st_name = %s"
+#     address_dict = defaultdict(lambda: None)
+#     address_dict['st_prefix'] = st_predir
+#     address_dict['st_name'] = street_name
+#     address_dict['st_type'] = st_postype
+#     sql_list.append(ec_util.to_upper_or_none(_streetname))
+#
+#     if _st_predir:
+#         sql = sql + " AND st_prefix = %s"
+#         sql_list.append(ec_util.to_upper_or_none(_st_predir))
+#
+#     if _st_type:
+#         sql = sql + " AND st_type = %s"
+#         sql_list.append(ec_util.to_upper_or_none(_st_type))
+#
+#     cur = _sql_con.cursor()
+#     cur.execute(sql, sql_list)
+#     rows = cur.fetchall()
+#
+#     # not found, so search via a possible alias
+#     if rows.__len__() == 0:
+#         new_name = street_name_alias.get(_streetname, None)
+#         if new_name:
+#             sql_list = list()
+#             sql = "SELECT DISTINCT(st_name), st_prefix, st_type FROM ec.address.unique_street_names WHERE st_name = %s"
+#             sql_list.append(ec_util.to_upper_or_none(new_name))
+#
+#             if _st_predir:
+#                 sql = sql + " AND st_prefix = %s"
+#                 sql_list.append(ec_util.to_upper_or_none(_st_predir))
+#
+#             if _st_type:
+#                 sql = sql + " AND st_type = %s"
+#                 sql_list.append(ec_util.to_upper_or_none(_st_type))
+#
+#             cur = _sql_con.cursor()
+#             cur.execute(sql, sql_list)
+#             rows = cur.fetchall()
+#
+#         if rows.__len__() == 0:
+#             # logging.WARN(f"Ambiguous address provided and could not determine a matching address for {_st_predir} {_streetname} {_st_type}")
+#             return None
+#         elif rows.__len__() > 1:
+#             logging.WARN(f"Multiple street types for {_st_predir} {new_name} {_st_type}")
+#             return None
+#
+#     # found a match now populate dictionary
+#     row = rows[0]
+#     address_dict = defaultdict(lambda: None)
+#     st_predir = ec_util.to_upper_or_none(row[1])
+#     street_name = ec_util.to_upper_or_none(row[0])
+#     st_postype = ec_util.to_upper_or_none(row[2])
+#     if st_predir:
+#         address_dict['st_prefix'] = st_predir
+#     if street_name:
+#         address_dict['st_name'] = street_name
+#     if st_postype:
+#         address_dict['st_type'] = st_postype
 
-            if rows.__len__() == 0:
-                logging.error("Ambiguous address provided and could not determine a matching address for {}".format(sql))
-                return None
-            elif rows.__len__() > 1:
-                logging.error("Multiple street types for {}".format(_streetname))
-                return None
-
-        row = rows[0]
-        address_dict = defaultdict(lambda: None)
-        st_predir = row[1]
-        street_name = row[0]
-        st_postype = row[2]
-        if st_predir:
-            st_predir = st_predir.strip().upper()
-            address_dict['st_prefix'] = st_predir.strip().upper()
-        if street_name:
-            street_name = street_name.strip().upper()
-            address_dict['st_name'] = street_name.strip().upper()
-        if st_postype:
-            st_postype = st_postype.strip().upper()
-            address_dict['st_type'] = st_postype.strip().upper()
-
-    except Exception as e:
-        logging.error("sql_get_unique_street_name database: {}".format(e))
-
-    except pyodbc.Error as e:
-        logging.error("sql_get_unique_street_name database: {}".format(e))
-        if con:
-            con.close()
-
-    finally:
-        if con:
-            con.commit()
-            con.close()
-
-    return address_dict
+# except Exception as e:
+#     logging.error(f"General {inspect.stack()[0][3]} {e} {sys.exc_info()[-1].tb_lineno} for {_st_predir} {_streetname}  {_st_type}")
+#
+# except psycopg2.Error as e:
+#     logging.error(f"{inspect.stack()[0][3]} {e} for {_streetname} {_st_predir} {_st_type}")
+#
+# return address_dict
 
 
 # def load_unique_street_names():
@@ -1155,7 +1229,7 @@ def sql_get_unique_street_name(_st_predir=None, _streetname=None, _st_postype=No
 #                        "soundex(?))"
 #     SQL_DROP_NAMES = "DROP TABLE IF EXISTS address.unique_street_names "
 #     SQL_CREATE_NAMES = "CREATE TABLE address.unique_street_names(" \
-#                        "id INT IDENTITY NOT NULL," \
+#                        "id SERIAL NOT NULL," \
 #                        "street_name VARCHAR(100) NOT NULL," \
 #                        "words INTEGER NOT NULL," \
 #                        "fuzzy CHARACTER(4) NOT NULL," \
@@ -1181,12 +1255,12 @@ def sql_get_unique_street_name(_st_predir=None, _streetname=None, _st_postype=No
 #                 street_name = str(row[1])
 #                 try:
 #                     cur.execute(SQL_INSERT_NAMES, [street_name, street_name, street_name])
-#                 except pyodbc.IntegrityError:
+#                 except psycopg2.IntegrityError:
 #                     con.rollback()
 #                 else:
 #                     con.commit()
 # 
-#     except pyodbc.Error as e:
+#     except psycopg2.Error as e:
 #         logging.error(e)
 # 
 #     except OSError as e:
@@ -1221,6 +1295,14 @@ def problem_address_tokenizer(_name):
 
     pattern = re.compile("\s")
     result_split = pattern.split(_name)
+
+    for govn in scourgify.address_constants.GOVERNMENT_ROADS:
+        if govn == result_split[1]:
+            address_dict["add_number"] = result_split[0]
+            address_dict["st_name"] = result_split[1] + " " + result_split[2]
+            if 'FM' == govn or 'CR' == govn:
+                address_dict["st_type"] = "RD"
+            return address_dict
 
     for idx, st_name in enumerate(result_split[1:]):
         for key, value in scourgify.address_constants.PROBLEM_ST_NAMES.items():
@@ -1321,20 +1403,12 @@ def problem_address_tokenizer(_name):
     return address_dict
 
 
-def address_parcer(_prefixes, _full_address_text):
-    logging.debug("address_parcer: {}".format(_full_address_text))
-
+def address_parcer(_full_address_text: str, _city: str):
     house_number = None
     street_name = None
     prefix = None
     type = None
     add_unit = None
-
-    # load necessary arrays
-    # street_types = get_all_street_types();
-    # street_type_aliases = get_all_street_type_aliases();
-
-    result = dict()
 
     address_dict = problem_address_tokenizer(_full_address_text)
 
@@ -1342,7 +1416,7 @@ def address_parcer(_prefixes, _full_address_text):
         try:
             result = scourgify.normalize_address_record(_full_address_text)
         except UnParseableAddressError as e:
-            logging.debug("\tNOT PARSED: {}\n".format(_full_address_text))
+            logging.debug(f"NOT PARSED: {_full_address_text} {e}")
             return None
 
         # todo lookup valid unit designators
@@ -1397,18 +1471,18 @@ def address_parcer(_prefixes, _full_address_text):
                 type = "HWY"
                 break
 
-        address_dict = sql_get_unique_street_name(prefix, street_name, type)
+        address_dict = sql_get_unique_street_name(prefix, street_name, type, _city)
     else:
         house_number = address_dict["add_number"]
         prefix = address_dict["st_prefix"]
         street_name = address_dict["st_name"]
         type = address_dict["st_type"]
         add_unit = address_dict["add_unit"]
-        address_dict = sql_get_unique_street_name(address_dict["st_prefix"], address_dict["st_name"], address_dict["st_type"])
+        address_dict = sql_get_unique_street_name(address_dict["st_prefix"], address_dict["st_name"], address_dict["st_type"], _city)
 
     if address_dict is None:
         street_name = sql_get_street_name_by_alias(street_name)
-        address_dict = sql_get_unique_street_name(prefix, street_name, type)
+        address_dict = sql_get_unique_street_name(prefix, street_name, type, _city)
 
     if address_dict:
         address_dict["add_number"] = house_number
@@ -1490,10 +1564,10 @@ def load_incode_addresses():
                         "addr_city," \
                         "addr_state," \
                         "addr_zip_code)" \
-                        "VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+                        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
     SQL_DROP_INCODE = "DROP TABLE IF EXISTS address.incode_address "
     SQL_CREATE_INCODE = "CREATE TABLE address.incode_address(" \
-                        "id INT IDENTITY NOT NULL," \
+                        "id SERIAL NOT NULL," \
                         "freeform_address VARCHAR(100) NOT NULL," \
                         "occupant VARCHAR(100) NULL," \
                         "account_status CHARACTER(1) NULL," \
@@ -1540,6 +1614,7 @@ def load_incode_addresses():
 
         if arcpy.Exists(workspace_meter_address):
             arcpy.Delete_management(workspace_meter_address)
+
         arcpy.CreateFeatureclass_management(workspace + os.sep + os.sep + "Address", "meter_address", "POINT", "", "", "", sr_2278)
         arcpy.AddField_management(workspace_meter_address, "account", "TEXT", "", "", 7, "Account", "NON_NULLABLE")
         arcpy.AddField_management(workspace_meter_address, "house_number", "SHORT", "", "", "", "House Number", "NON_NULLABLE")
@@ -1568,7 +1643,13 @@ def load_incode_addresses():
                 freeform = str(row[1]).upper()
                 occupant = str(row[2]).upper()
                 account_status = str(row[3]).upper()
-                address = address_parcer(prefixes, freeform)
+                address = address_parcer(con, prefixes, freeform, "EL CAMPO")
+                if address is None:
+                    street_name_alias = ec_addresses.get_all_street_name_alias()
+                    new_name = street_name_alias.get(address["st_name"], None)
+                    if new_name:
+                        address["st_name"] = new_name
+                        address = address_parcer(full_address(address), "EL CAMPO")
 
                 # find meter account
                 row_out = []
@@ -1606,7 +1687,7 @@ def load_incode_addresses():
         logging.info("{} {}".format(inspect.stack()[0][3], arcpy.GetMessage(0)))
         logging.info("{} {}".format(inspect.stack()[0][3], e))
 
-    except pyodbc.Error as e:
+    except psycopg2.Error as e:
         logging.info("{} {}".format(inspect.stack()[0][3], e))
 
     except Exception as e:
@@ -1623,18 +1704,18 @@ def load_incode_addresses():
             edit.stopEditing(save_changes=True)
 
 
-def load_parcel_addresses(con, _from_shapefile, _cleanup):
+def load_parcel_addresses(_sql_con, _from_shapefile, _cleanup):
     edit = None
-    SQL_INSERT_ADDRESSES = "INSERT INTO address.address_CAD(add_number, st_prefix, st_name, st_type, add_unit, st_full_name, add_address, city, zip, source, fuzzy) VALUES (?,?,?,?,?,?,?,?,?,?,soundex(?))"
-
-    addresses = []
+    SQL_INSERT_ADDRESSES = r"INSERT INTO address.address_CAD(add_number, st_prefix, st_name, st_type, add_unit, st_full_name, add_address, city, zip, source, fuzzy) " \
+                           r"VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s))" \
+                           r"ON CONFLICT ON CONSTRAINT addressCAD_name_idx DO NOTHING"
 
     try:
         #
         # drop/create table for schema address
-        sql_server_connection = con
+        _sql_con
         if _cleanup:
-            setup_CAD_addresses_table(sql_server_connection)
+            setup_CAD_addresses_table(_sql_con)
         #
         # arcgis stuff for multi-users
         to_workspace = ec_arcpy_util.sde_workspace_via_host()
@@ -1718,6 +1799,9 @@ def load_parcel_addresses(con, _from_shapefile, _cleanup):
                     if "&" in address_dict["st_name"]:
                         continue
 
+                if 115 == address_dict["add_number"] and "CR 362" == address_dict["st_name"]:
+                    print("found")
+
                 if ec_util.to_upper_or_none(row[5]):
                     address_dict["city"] = ec_util.to_upper_or_none(row[5])
 
@@ -1734,13 +1818,20 @@ def load_parcel_addresses(con, _from_shapefile, _cleanup):
                     # no geometry
                     continue
 
-                address_parced_dict = address_parcer(prefixes, full_address(address_dict))
+                address_parced_dict = address_parcer(full_address(address_dict), address_dict["city"])
+                if address_parced_dict is None:
+                    street_name_alias = ec_addresses.get_all_street_name_alias()
+                    new_name = street_name_alias.get(address_dict["st_name"], None)
+                    if new_name:
+                        address_dict["st_name"] = new_name
+                        address_parced_dict = address_parcer(full_address(address_dict), address_dict["city"])
+
                 if address_parced_dict is None:
                     #
                     # No match found - log un-matchable address
                     address_dict["st_full_name"] = full_street_name(address_dict)
                     address_dict["add_address"] = full_address(address_dict)
-                    sql_insert_not_found_address(sql_server_connection, address_dict)
+                    sql_insert_not_found_address(_sql_con, address_dict)
                     continue
 
                 if address_parced_dict.__len__() > 0 and address_parced_dict["add_number"] and address_parced_dict["st_name"]:
@@ -1751,7 +1842,7 @@ def load_parcel_addresses(con, _from_shapefile, _cleanup):
                     address_parced_dict["zip"] = address_dict["zip"]
                     address_parced_dict["point"] = address_dict["point"]
 
-                    sql_insert_address(sql_server_connection, address_parced_dict, SQL_INSERT_ADDRESSES)
+                    sql_insert_address(_sql_con, address_parced_dict, SQL_INSERT_ADDRESSES)
 
                     insert_cursor.insertRow([prop_id,
                                              address_parced_dict["add_number"],
@@ -1766,28 +1857,37 @@ def load_parcel_addresses(con, _from_shapefile, _cleanup):
                                              address_parced_dict["source"],
                                              address_parced_dict["point"]])
 
+                    # check to see if an address exists with the address name full
+                    address_parced_dict["source"] = "CAD"
                     mongo_address = MongoAddress.objects(ad_name_full=address_parced_dict["add_address"]).first()
                     if mongo_address:
-                        mongo_address.append_location(address_dict, address_parced_dict["point"].X, address_parced_dict["point"].Y)
-                        mongo_address.save()
+                        for location in mongo_address.locations:
+                            # we already have a location for this source, so skip
+                            if address_parced_dict["source"] == location.source:
+                                break
+                            else:
+                            # we already have an address, but not location source, so append a new one
+                                mongo_address.append_location(address_parced_dict, address_parced_dict["point"].X, address_parced_dict["point"].Y)
+                                mongo_address.save()
+                                break
                     else:
                         mongo_address = MongoAddress()
                         mongo_address.create(address_parced_dict, address_parced_dict["point"].X, address_parced_dict["point"].Y)
                         mongo_address.save()
 
     except arcpy.ExecuteError as e:
-        logging.info("{} {}".format(inspect.stack()[0][3], e))
+        logging.error(f"{inspect.stack()[0][3]} {e}")
 
-    except pyodbc.Error  as e:
-        logging.info("{} {}".format(inspect.stack()[0][3], e))
+    except psycopg2.Error  as e:
+        logging.error(f"{inspect.stack()[0][3]} {e}")
 
     except Exception as e:
-        logging.info("{} {}".format(inspect.stack()[0][3], e))
+        logging.error(f"{inspect.stack()[0][3]} {e}")
 
     finally:
-        if sql_server_connection:
-            sql_server_connection.commit()
-            sql_server_connection.close()
+        if _sql_con:
+            _sql_con.commit()
+            _sql_con.close()
 
         if edit:
             edit.stopOperation()
@@ -1796,7 +1896,7 @@ def load_parcel_addresses(con, _from_shapefile, _cleanup):
 
 
 def sql_insert_unique_streets(_cur, row):
-    SQL_INSERT_UNIQUE_STREETS = "INSERT INTO address.unique_street_names(st_prefix, st_name, st_type, st_full_name, city, fuzzy) VALUES (?,?,?,?,?,soundex(?))"
+    SQL_INSERT_UNIQUE_STREETS = "INSERT INTO address.unique_street_names(st_prefix, st_name, st_type, st_full_name, city, fuzzy) VALUES (%s,%s,%s,%s,%s,soundex(%s))"
     try:
         _cur.execute(SQL_INSERT_UNIQUE_STREETS, [
             row[1],  # str_pre
@@ -1806,14 +1906,14 @@ def sql_insert_unique_streets(_cur, row):
             row[4],  # city
             row[2]  # fuzzy
         ])
-    except pyodbc.Error as e:
+    except psycopg2.Error as e:
         sqlstate = e.args[0]
         if '23000' == sqlstate:
             logging.info("{} {}".format(inspect.stack()[0][3], row[0]))
 
 
 def sql_insert_unique_addresses(_cur, row):
-    SQL_INSERT_UNIQUE_ADDRESSES = "INSERT INTO address.unique_addresses(st_prefix, st_name, st_type, st_full_name, add_address, city, fuzzy) VALUES (?,?,?,?,?,?,soundex(?))"
+    SQL_INSERT_UNIQUE_ADDRESSES = "INSERT INTO address.unique_addresses(st_prefix, st_name, st_type, st_full_name, add_address, city, fuzzy) VALUES (%s,%s,%s,%s,%s,%s,soundex(%s))"
     try:
         _cur.execute(SQL_INSERT_UNIQUE_ADDRESSES, [
             row[2],  # str_pre
@@ -1824,7 +1924,7 @@ def sql_insert_unique_addresses(_cur, row):
             row[5],  # city
             row[7]  # fuzzy
         ])
-    except pyodbc.Error as e:
+    except psycopg2.Error as e:
         sqlstate = e.args[0]
         if '23000' == sqlstate:
             logging.info("{} {}".format(inspect.stack()[0][3], row[0]))
@@ -1833,7 +1933,7 @@ def sql_insert_unique_addresses(_cur, row):
 def create_unique_tables():
     SQL_DROP_UNIQUE_STREETS = "DROP TABLE IF EXISTS address.unique_street_names"
     SQL_CREATE_UNIQUE_STREETS = "CREATE TABLE address.unique_street_names(" \
-                                "id INT IDENTITY NOT NULL, " \
+                                "id SERIAL NOT NULL, " \
                                 "st_prefix CHARACTER(6) NULL, " \
                                 "st_name VARCHAR(50) NOT NULL, " \
                                 "st_type VARCHAR(4) NULL, " \
@@ -1846,7 +1946,7 @@ def create_unique_tables():
 
     SQL_DROP_UNIQUE_ADDRESSES = "DROP TABLE IF EXISTS address.unique_addresses"
     SQL_CREATE_UNIQUE_ADDRESSES = "CREATE TABLE address.unique_addresses(" \
-                                  "id INT IDENTITY NOT NULL, " \
+                                  "id SERIAL NOT NULL, " \
                                   "st_prefix CHARACTER(6) NULL, " \
                                   "st_name VARCHAR(50) NOT NULL, " \
                                   "st_type VARCHAR(4) NULL, " \
@@ -1909,7 +2009,7 @@ def create_unique_tables():
             sql_insert_unique_addresses(cur, row)
 
 
-    except pyodbc.Error as e:
+    except psycopg2.Error as e:
         logging.error("{} {}".format(inspect.stack()[0][3], e))
 
     except Exception as e:
@@ -1923,7 +2023,7 @@ def create_unique_tables():
 
 
 def load_incode_addresses(_con, _incode_file_path, _cleanup=True):
-    SQL_INSERT_ADDRESSES_INCODE = r"INSERT INTO address.address_incode(add_number, st_prefix, st_name, st_type, add_unit, add_full, add_address, add_city, add_zip, add_source, fuzzy) VALUES (?,?,?,?,?,?,?,?,?,?,soundex(?))"
+    SQL_INSERT_ADDRESSES_INCODE = r"INSERT INTO address.address_incode(add_number, st_prefix, st_name, st_type, add_unit, add_full, add_address, add_city, add_zip, add_source, fuzzy) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s))"
     sql_server_connection = None
 
     try:
@@ -1938,7 +2038,7 @@ def load_incode_addresses(_con, _incode_file_path, _cleanup=True):
                 ec_addresses.sql_insert_address(sql_server_connection, address_dict, SQL_INSERT_ADDRESSES_INCODE)
 
 
-    except pyodbc.Error as e:
+    except psycopg2.Error as e:
         if sql_server_connection:
             sql_server_connection.rollback()
             sql_server_connection.close()
@@ -1956,14 +2056,16 @@ def load_incode_addresses(_con, _incode_file_path, _cleanup=True):
 
 def load_e911_addresses(_con, _from_workspace, _cleanup=True):
     edit = None
-    SQL_INSERT_ADDRESSES_911 = r"INSERT INTO address.address_911(add_number, st_prefix, st_name, st_type, add_unit, st_full_name, add_address, city, zip, source, fuzzy) VALUES (?,?,?,?,?,?,?,?,?,?,soundex(?))"
+    SQL_INSERT_ADDRESSES_911 = r"INSERT INTO address.address_911(add_number, st_prefix, st_name, st_type, add_unit, st_full_name, add_address, city, zip, source, fuzzy) " \
+                               r"VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s)) " \
+                               r"ON CONFLICT ON CONSTRAINT address_911_constraint DO NOTHING"
 
     try:
         #
         # drop/create table for schema address
-        sql_server_con = _con
+        sql_con = _con
         if _cleanup:
-            setup_e911_addresses_tables(sql_server_con)
+            setup_e911_addresses_tables(sql_con)
 
         #
         # arcgis stuff for multi-users
@@ -1975,9 +2077,6 @@ def load_e911_addresses(_con, _from_workspace, _cleanup=True):
         #
         # if first time, create featuredataset HGAC
         ds = ec_arcpy_util.find_dataset("*HGAC")
-        # WGS 84
-        proj_2278 = Proj(init='EPSG:2278', preserve_units=True)
-        proj_4326 = Proj(init='EPSG:4326')
         sr_2278 = arcpy.SpatialReference(2278)
         if ds is None:
             ds = arcpy.CreateFeatureDataset_management(to_workspace, "HGAC", sr_2278)
@@ -2018,8 +2117,6 @@ def load_e911_addresses(_con, _from_workspace, _cleanup=True):
         from_fc = _from_workspace + os.sep + "hgac911_address"
 
         # Iterator over HGAC supplied feature class
-
-        addresses = []
         with arcpy.da.SearchCursor(from_fc, from_fields) as cursor:
             for row in cursor:
                 address_dict = defaultdict(lambda: None)
@@ -2061,31 +2158,39 @@ def load_e911_addresses(_con, _from_workspace, _cleanup=True):
                                          point))
 
                 # Insert into Address schema
-                sql_insert_address(sql_server_con, address_dict, SQL_INSERT_ADDRESSES_911)
+                sql_insert_address(sql_con, address_dict, SQL_INSERT_ADDRESSES_911)
 
+                address_dict["source"] = "E911"
                 mongo_address = MongoAddress.objects(ad_name_full=address_dict["add_address"]).first()
                 if mongo_address:
-                    continue
+                    for location in mongo_address.locations:
+                        # we already have a location for this source, so skip
+                        if address_dict["source"] == location.source:
+                            break
+                        else:
+                            # we already have an address, but not location source, so append a new one
+                            mongo_address.append_location(address_dict, address_dict["point"].X, address_dict["point"].Y)
+                            mongo_address.save()
+                            break
                 else:
                     mongo_address = MongoAddress()
-                    mongo_address.create(address_dict, point.lastPoint.X, point.lastPoint.Y)
+                    mongo_address.create(address_dict, address_dict["point"].X, address_dict["point"].Y)
                     mongo_address.save()
 
-        # MongoAddress.objects().insert(addresses)
+    except psycopg2.Error as e:
+        logging.error(f"{inspect.stack()[0][3]} {e}")
+
     except Exception as e:
-        logging.error("{} {}".format(inspect.stack()[0][3], e))
+        logging.error(f"{inspect.stack()[0][3]} {e}")
 
     finally:
-        if sql_server_con:
-            sql_server_con.commit()
-            sql_server_con.close()
+        if sql_con:
+            sql_con.commit()
+            sql_con.close()
         if edit:
             edit.stopOperation()
             logging.info("Saving changes for HGAC address import")
             edit.stopEditing(save_changes=True)
-
-
-
 
 
 def load_new_hgac_e911_addresses(_gdb_database):
@@ -2177,7 +2282,7 @@ def load_new_hgac_e911_addresses(_gdb_database):
                 insert_row.append(point)
                 insert_cursor.insertRow(insert_row)
 
-    except pyodbc.Error as e:
+    except psycopg2.Error as e:
         if con:
             con.rollback()
         logging.error("{} {}".format(inspect.stack()[0][3], e))

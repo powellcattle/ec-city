@@ -1,8 +1,8 @@
 import mongoengine
 from pyproj import Proj, transform
 
-from nonsql.location import Location
-from nonsql.name_alias import NameAlias
+from nosql.location import Location
+from nosql.name_alias import NameAlias
 
 proj_2278 = Proj(init='EPSG:2278', preserve_units=True)
 proj_4326 = Proj(init='EPSG:4326')

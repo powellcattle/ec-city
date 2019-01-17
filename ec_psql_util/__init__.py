@@ -6,8 +6,7 @@ import inspect
 import psycopg2
 
 
-def psql_connection(_database=r"ec", _user=r"sde", _password=r"sde", _host=r"localhost", _port=r"5432",
-                    _read_only=False):
+def psql_connection(_database=r"ec", _user=r"sde", _password=r"sde", _host=r"localhost", _port=r"5432", _read_only=False) -> psycopg2.extensions.connection:
     database = _database
     user = _user
     password = _password

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+    <!--<link rel="stylesheet" href="/resources/demos/style.css">-->
+    <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 8px;
+        }
+
+        tr:nth-child(odd) {
+            background-color: #0178b1;
+        }
+    </style>
+
+    <script type="text/javascript">
+
+        $(function () {
+
+            $("#address").autocomplete({
+                source: function (request, response) {
+                    $.ajax({
+                        url: '/address',
+                        type: 'GET',
+                        autoFocus: true,
+                        dataType: 'json',
+                        data: {get_address: request.term},
+                        success: function (data) {
+                            if (!data)
+                                return;
+                            response($.map(data, function (results) {
+                                var addresses = [];
+                                $.each(results, function (idx, address) {
+                                    addresses[idx] = address;
+                                });
+                                return addresses;
+                            }));
+                        }
+                    });
+                },
+                minLength: 3
+            });
+            $('a#process_location').bind('click', function () {
+                if ($("#btn").text() == 'Clear') {
+                    $("#address").text('')
+                    $("#btn").text('Location');
+                    $("#adtbl tr").remove();
+                    return true;
+                }
+
+                $.getJSON('/_address_location', {
+                    address: $('input[name="get_address"]').val(),
+                }, function (data) {
+                    $.map(data, function (locations) {
+                        $("#adtbl tr").remove();
+                        $("#btn").text('Clear');
+                        var rows = "<table id='adtbl' class='table'>";
+                        rows += '<tr><th>EPSG</th>';
+                        rows += '<th>X</th>';
+                        rows += '<th>Y</th></tr>';
+
+                        $.each(locations, function (idx, location) {
+                                rows += '<tr><td style="text-align:left">' + location[0]["EPSG"] + '</td>';
+                                rows += '<td style="text-align:left">' + location[1]["X"] + '</td>';
+                                rows += '<td style="text-align:left">' + location[2]["Y"] + '</td></tr>';
+
+
+                        });
+                        rows += '</table>';
+                        $("#loc_results").prepend(rows);
+                    });
+                });
+                return false;
+            });
+
+        });
+
+
+    </script>
+</head>
+<body class="body">
+<div class="ui-widget">
+    <form>
+        <input id="address" type="text" autocomplete="off" name="get_address">
+        <a href="#" id="process_location">
+            <button id="btn" class="ui-button ui-widget ui-corner-all">Location</button>
+        </a>
+    </form>
+    <p id="loc_results"></p>
+
+</div>
+</body>
+</html>

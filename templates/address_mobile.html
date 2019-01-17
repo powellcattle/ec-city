@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Cattle Offspring</title>
+    <meta content="width=device-width, initial-scale=1" name="viewport">
+    <link href="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css" rel="stylesheet"/>
+    <script src="http://code.jquery.com/jquery-1.11.1.min.js"></script>
+    <script src="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
+
+    <style>
+        .ui-filter-inset {
+            margin-top: 0;
+        }
+    </style>
+
+    <script type="text/javascript">
+
+        $(document).on("pagecreate", function () {
+            $("#input_address").on('change', function () {
+                if ($(this).val() == '') {
+                    $("#location-table thead").remove();
+                    $("#location-table tbody").remove();
+                }
+            });
+
+
+            $("#list_address").on("tap", "li", function (event) {
+                let $ul = $(this);
+                $("#input_address").val($ul.text());
+                $("#list_address").html("");
+
+                $.getJSON('/_address_location', {"address": $ul.text()}, function (data) {
+                    $("#location-table thead").remove();
+                    let locs =
+                        "<thead><tr><th data-priority='1'>EPSG</th><th data-priority='2'>X</th><th data-priority='3'>Y</th></tr></thead><tbody></tbody>";
+                    $.each(data["E911"], function (idx, loc) {
+                        console.log(loc);
+                        locs += '<tr><td>' + loc[0]["EPSG"] + '</td>';
+                        locs += "<td>" + loc[1]["X"] + "</td>";
+                        locs += "<td>" + loc[2]["Y"] + "</td></tr>";
+                    });
+                    $("#location-table").append(locs);
+                });
+
+
+            });
+
+
+            $("#list_address").on("filterablebeforefilter", function (e, data) {
+                let $ul = $(this),
+                    $input = $(data.input),
+                    value = $input.val(),
+                    html = "";
+                $ul.html("");
+
+                if (value && value.length > 2) {
+
+                    $ul.html("<li><div class='ui-loader'><span class='ui-icon ui-icon-loading'></span></div></li>");
+                    $ul.listview("refresh");
+
+                    $.getJSON("/address", {"get_address": $input.val()}, function (response) {
+                        if (!response)
+                            return;
+                        $.each(response["addresses"], function (idx, address) {
+                            html += "<li>" + address + "</li>";
+                        });
+                        $ul.html(html);
+                        $ul.listview("refresh");
+                        $ul.trigger("updatelayout");
+                    });
+                }
+            });
+        });
+
+    </script>
+</head>
+<body>
+<div class="ui-widget" data-content-theme="a" data-role="page" data-theme="a">
+    <div data-role="header">
+        <h1>Address</h1>
+    </div>
+    <div class="ui-content" role="main">
+        <form class="ui-filterable">
+            <input data-type="search" id="input_address" placeholder="Address..."/>
+        </form>
+        <ul data-filter="true" data-input="#input_address" data-inset="true" data-role="listview" id="list_address"
+        ></ul>
+
+        <div id="locations">
+            <table class="ui-responsive" data-mode="reflow" data-role="tableview" id="location-table">
+            </table>
+        </div>
+
+    </div>
+</div>
+</body>
+</html>
