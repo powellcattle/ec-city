@@ -45,11 +45,11 @@ def fieldExists(_feature_class, _field_name):
             return True
     return False
 
-def find_dataset(_dataset):
+def find_dataset(_dataset: str)->str:
     """
-    :rtype: object
+    :rtype: str
     """
-    datasets = arcpy.ListDatasets(_dataset, "FEATURE")
+    datasets = arcpy.ListDatasets(_dataset, r"Feature")
     for ds in datasets:
         return ds
     return None
@@ -58,7 +58,7 @@ def find_feature_class(_feature_class, _data_set):
     """
     :rtype: object
     """
-    feature_classes = arcpy.ListFeatureClasses(_feature_class,"ALL",_data_set)
+    feature_classes = arcpy.ListFeatureClasses(_feature_class,r"All",_data_set)
     for fc in feature_classes:
         return fc
     return None

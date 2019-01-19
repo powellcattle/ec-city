@@ -34,10 +34,8 @@ def address_details():
             for location in found_address.locations:
                 if "E911" == location.source:
                     list_coords = location.coords["coordinates"]
-                    ret = {}
+                    ret = dict()
                     ret["E911"] = [{"EPSG": "2278"}, {"X": list_coords[0][0]}, {"Y": list_coords[0][1]}], [{"EPSG": "4326"}, {"X": list_coords[1][0]}, {"Y": list_coords[1][1]}]
-                    # ret["E911"] = [{"list_coords[0][0], list_coords[0][1], list_coords[1][0], list_coords[1][1]]
-                    # print(ret["E911"][0])
 
         return jsonify(ret)
     except Exception as e:

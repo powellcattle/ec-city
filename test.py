@@ -1,35 +1,23 @@
-import fuzzy
-import pymongo
-from pymongo import MongoClient
+from datetime import datetime
+from ftplib import FTP
+import zipfile
+import os
+import logging
+import inspect
 
-ENCODERS = {
-    'soundex': fuzzy.Soundex(4),
-    'nysiis': fuzzy.nysiis,
-    'dmetaphone': fuzzy.DMetaphone(),
-}
+import arcpy
 
-# parser = argparse.ArgumentParser(description='Search for a name in the database')
-# parser.add_argument('algorithm', choices=('soundex', 'nysiis', 'dmetaphone'))
-# parser.add_argument('name')
-# args = parser.parse_args()
+logging.basicConfig(format="%(asctime)s %(levelname)s:%(message)s",
+                    filename="parcel_updates.log",
+                    filemode="w",
+                    level=logging.ERROR,
+                    datefmt="%m/%d/%Y %I:%M:%S %p")
 
-client = MongoClient("192.168.1.130", 27017)
-db = client["address"]
-addresses = db.address
+arcpy.env.workspace = r"C:\Users\spowell\AppData\Roaming\ESRI\Desktop10.6\ArcCatalog\localhost.sde"
+
+datasets = arcpy.ListDatasets("Boundary", r"Feature")
+assert(datasets)
 
 
-# encoded_name = ENCODERS[args.algorithm](args.name)
-# query = {args.algorithm:encoded_name}
-# encoded_name = ENCODERS[args.algorithm](args.name)
-query = {"st_name":"fuzzy.nysiis(CALHOUN)"}
-# addresses = db.
-try:
-    # cols = addresses.find_one()
-    # print(cols)
-    # pass
-
-    for address in addresses.find(query):
-        print(address['st_name'])
-
-except Exception as e:
-    print(f"{e}")
+feature_classes = arcpy.ListFeatureClasses("county_parcel", "All", "ec.sde.Boundary")
+assert(feature_classes)

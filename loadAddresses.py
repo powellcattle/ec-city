@@ -2,7 +2,6 @@ import logging
 
 import ec_addresses
 import ec_psql_util
-import ec_sql_server_util
 from nosql import mongo_setup
 
 __author__ = 'spowell'

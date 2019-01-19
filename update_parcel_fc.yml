@@ -1,0 +1,11 @@
+ftp :
+  url : ftp.bisclient.com
+  username : WhartonCAD
+  password : WHARTONCAD!@34
+  zipfile  : yes
+  database : ownership.shp
+  download_path : download/
+geodatabase :
+  workspace : C:\Users\spowell\AppData\Roaming\ESRI\Desktop10.6\ArcCatalog\localhost.sde
+  data_set : Boundary
+  feature_class : county_parcel
