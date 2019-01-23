@@ -2,6 +2,7 @@ from nosql.address import MongoAddress
 
 __author__ = 'spowell'
 import logging
+import openlocationcode
 from flask import Flask
 from flask import request
 from flask import render_template
@@ -15,7 +16,7 @@ logging.basicConfig(format="%(asctime)s %(levelname)s:%(message)s",
                     datefmt="%m/%d/%Y %I:%M:%S %p")
 
 app = Flask(__name__)
-flask_setup = {"host": "192.168.1.170", "port": "5000", "debug": False}
+flask_setup = {"host": "192.168.1.170", "port": "5000", "debug": True}
 
 
 @app.before_first_request
@@ -35,7 +36,15 @@ def address_details():
                 if "E911" == location.source:
                     list_coords = location.coords["coordinates"]
                     ret = dict()
-                    ret["E911"] = [{"EPSG": "2278"}, {"X": list_coords[0][0]}, {"Y": list_coords[0][1]}], [{"EPSG": "4326"}, {"X": list_coords[1][0]}, {"Y": list_coords[1][1]}]
+                    ret["E911"] = [{"EPSG": "2278"}, {"X": list_coords[0][0]},
+                                   {"Y": list_coords[0][1]},
+                                   {"PLUS CODE": openlocationcode.encode(
+                                       list_coords[1][1], list_coords[1][0])}], \
+                                  [{"EPSG": "4326"},
+                                   {"X": list_coords[1][0]},
+                                   {"Y": list_coords[1][1]},
+                                   {"PLUS CODE": openlocationcode.encode(
+                                       list_coords[1][1], list_coords[1][0])}]
 
         return jsonify(ret)
     except Exception as e:

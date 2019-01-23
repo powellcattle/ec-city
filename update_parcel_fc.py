@@ -1,4 +1,5 @@
-__author__ = 'spowell'
+import pathlib
+import re
 import inspect
 import logging
 import os
@@ -56,18 +57,18 @@ def download_parcel_ftp(_settings: Settings):
         if not ".zip" in file:
             continue
         zip_file = file
-        ftp.retrbinary("RETR %s" % zip_file, open(settings.download_path + zip_file, 'wb').write)
+        ftp.retrbinary(f"RETR {zip_file}", open(settings.download_path + zip_file, 'wb').write)
     ftp.close()
     zip_ref = zipfile.ZipFile(settings.download_path + zip_file, 'r')
     zip_ref.extractall(settings.download_path)
     zip_ref.close()
 
 
-def find_parcel_shape(start_dir: str, shapefile: str) -> dict:
-    for root, dirs, files in os.walk(start_dir):
-        for file in files:
-            if shapefile.upper() == file.upper():
-                return {"root": root, "file": file}
+def find_parcel_shape(_relative_path: str, _find_file: str, _filter: str ="*.shp") -> dict:
+    p = pathlib.Path(_relative_path)
+    for _ in p.rglob(_filter):
+        if re.search(_find_file, _.name, re.IGNORECASE):
+            return {"path": pathlib.PureWindowsPath(_.resolve()).as_posix(), "file": _.name.split(".")[0]}
 
 
 parcel_update_fields = ["prop_id", "cad_url"]
@@ -106,18 +107,26 @@ try:
         arcpy.Delete_management(fc_prev)
     if fc:
         fc_prev = "".join((settings.feature_class, previous))
-        arcpy.Rename_management(settings.feature_class, fc_prev, data_type)
+        # arcpy.Rename_management(str(settings.feature_class), str(fc_prev), data_type)
+        from_fc = "".join((settings.data_set,"/",settings.feature_class))
+        to_fc = "".join((settings.data_set,"/",settings.feature_class,previous))
+        arcpy.CopyFeatures_management(from_fc, to_fc)
+        arcpy.Delete_management(fc)
 
     # get FTP supplied shapefile directory and file name
-    shp_fc_file = [os.path.join(shape_file_loc["root"], shape_file_loc["file"])]
-    shp_name = shape_file_loc["file"].split(".")[0]
+    shp_fc_file = shape_file_loc["path"]
+    shp_name = shape_file_loc["file"]
     shp_fc = ec_arcpy_util.find_feature_class("".join(("*", shp_name)), ds)
     if shp_fc:
         arcpy.Delete_management(shp_fc)
     arcpy.FeatureClassToGeodatabase_conversion(shp_fc_file, ds)
 
     shp_fc = ec_arcpy_util.find_feature_class("".join(("*", shp_name)), ds)
-    arcpy.Rename_management(shp_name, str(settings.feature_class), data_type)
+    # arcpy.Rename_management(str(shp_name), str(settings.feature_class), data_type)
+    from_fc = "".join((settings.data_set, "/", shp_name))
+    to_fc = "".join((settings.data_set, "/", settings.feature_class))
+    arcpy.CopyFeatures_management(from_fc, to_fc)
+    arcpy.Delete_management(from_fc)
 
     # arcpy.Copy_management(cad_copy, county_parcel_owner)
     # # Ownership FC no longer needed, delete

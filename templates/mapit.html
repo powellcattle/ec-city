@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Cattle Offspring</title>
+    <meta content="width=device-width, initial-scale=1" name="viewport">
+    <link href="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css" rel="stylesheet"/>
+    <script src="http://code.jquery.com/jquery-1.11.1.min.js"></script>
+    <script src="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
+
+    <style>
+        .ui-filter-inset {
+            margin-top: 0;
+        }
+    </style>
+
+    <script type="text/javascript">
+
+        // $(document).on("pagecreate", function () {
+        //     // The location of Uluru
+        //     var uluru = {lat: -25.344, lng: 131.036};
+        //     // The map, centered at Uluru
+        //     var map = new google.maps.Map(
+        //         $("#map"), {zoom: 4, center: uluru});
+        //     // The marker, positioned at Uluru
+        //     var marker = new google.maps.Marker({position: uluru, map: map});
+        //
+        // });
+    function initMap() {
+      // The location of Uluru
+      var uluru = {lat: -25.344, lng: 131.036};
+      // The map, centered at Uluru
+      var map = new google.maps.Map(
+          document.getElementById('map'), {zoom: 4, center: uluru});
+      // The marker, positioned at Uluru
+      var marker = new google.maps.Marker({position: uluru, map: map});
+    }
+
+    </script>
+</head>
+<body>
+<div class="ui-widget" data-content-theme="a" data-role="page" data-theme="a">
+    <div data-role="header">
+        <h1>Mapit</h1>
+    </div>
+    <div class="ui-content" role="main">
+        <div id="map">
+            <script async defer
+                    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCOcvN92ZZ4B2pcqX-pDkmVhGIbp_ePs3M">
+            </script>
+        </div>
+    </div>
+</div>
+</body>
+</html>
