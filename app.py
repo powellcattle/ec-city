@@ -75,7 +75,7 @@ def get_animal():
 def home():
     try:
         print("/home")
-        return render_template("address_mobile.html")
+        return render_template("address_mobile1.html")
     except Exception as e:
         return str(e)
 
