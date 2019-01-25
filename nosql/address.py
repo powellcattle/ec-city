@@ -13,6 +13,9 @@ class MongoAddress(mongoengine.Document):
     st_prefix = mongoengine.StringField(required=False, null=False)
     st_name = mongoengine.StringField(required=True, null=False)
     st_name_aliases = mongoengine.EmbeddedDocumentListField(NameAlias, null=False)
+    soundex = mongoengine.StringField(required=False)
+    nysiis = mongoengine.StringField(required=False)
+    metaphone = mongoengine.StringField(required=False)
     st_type = mongoengine.StringField(required=False, null=False)
     st_city = mongoengine.StringField(required=False)
     st_zip = mongoengine.StringField(required=False)
@@ -35,6 +38,10 @@ class MongoAddress(mongoengine.Document):
             self.ad_block = address_dict["add_number"]
         if address_dict["st_name"]:
             self.st_name = address_dict["st_name"]
+        if address_dict["soundex"]:
+            self.soundex = address_dict["soundex"]
+        if address_dict["metaphone"]:
+            self.metaphone = address_dict["metaphone"]
         if address_dict["st_type"]:
             self.st_type = address_dict["st_type"]
         if address_dict["city"]:

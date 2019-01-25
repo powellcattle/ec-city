@@ -8,6 +8,8 @@ from flask import request
 from flask import render_template
 from flask_jsonpify import jsonpify as jsonify
 from nosql import mongo_setup
+import phonetics
+import re
 
 logging.basicConfig(format="%(asctime)s %(levelname)s:%(message)s",
                     filename="flask_autocomplete.log",
@@ -17,7 +19,7 @@ logging.basicConfig(format="%(asctime)s %(levelname)s:%(message)s",
 
 app = Flask(__name__)
 flask_setup = {"host": "192.168.1.170", "port": "5000", "debug": True}
-
+re_pattern = re.compile(r"\s+")
 
 @app.before_first_request
 def startup():
@@ -50,9 +52,62 @@ def address_details():
     except Exception as e:
         return (str(e))
 
+@app.route("/phonetic/_compare", methods=["GET"])
+def phonetic_street_compare():
+    st_name = request.args.get("st_name")
+    st_name = re_pattern.sub("", st_name.lower())
+    soundex = phonetics.soundex(st_name)
+    print(soundex)
+
+    results = set()
+    soundexes = MongoAddress.objects(st_city="EL CAMPO", soundex=soundex)
+    if soundexes:
+        for address in soundexes:
+            if address["st_name"] in results:
+                continue
+            else:
+                results.add(address["st_name"])
+
+    metaphone = phonetics.metaphone(request.args.get("st_name").lower())
+    metaphones = MongoAddress.objects(st_city="EL CAMPO", metaphone=metaphone)
+    if soundexes:
+        for address in metaphones:
+            if address["st_name"] in results:
+                continue
+            else:
+                results.add(address["st_name"])
+
+
+        return jsonify({"phonetics": list(results)})
+    else:
+        return jsonify("")
+
+@app.route("/phonetic/street", methods=["GET"])
+def get_street():
+    request_stname = request.args.get("st_name")
+
+    if request_stname:
+        print(request_stname)
+        addresses = MongoAddress.objects(st_city="EL CAMPO", st_name__icontains=request_stname)
+
+    results = set()
+    if addresses:
+        for address in addresses:
+            if address["st_name"] in results:
+                continue
+            else:
+                results.add(address["st_name"])
+                if results.__len__() > 5:
+                    break
+
+        return jsonify({"st_names": list(results)})
+    else:
+        return jsonify(results)
+
+
 
 @app.route("/address", methods=["GET"])
-def get_animal():
+def get_address():
     req_address = request.args.get("get_address")
 
     if req_address:
@@ -71,10 +126,16 @@ def get_animal():
         return jsonify(results)
 
 
-@app.route("/home/")
-def home():
+@app.route("/phonetic")
+def phonetic():
     try:
-        print("/home")
+        return render_template("phonetic_mobile.html")
+    except Exception as e:
+        return str(e)
+
+@app.route("/mapit")
+def mapit():
+    try:
         return render_template("address_mobile1.html")
     except Exception as e:
         return str(e)

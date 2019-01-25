@@ -2,8 +2,12 @@
 # -*- coding: utf-8 -*-
 import inspect
 import re
-import sys
+
 from collections import defaultdict
+
+import phonetics
+
+import openlocationcode
 
 import psycopg2
 from pyproj import Proj, transform
@@ -158,7 +162,6 @@ class Address:
 
         if self.add_unit is not None:
             _tmp_full = _tmp_full + ' ' + str(self.add_unit)
-
         return _tmp_full
 
 
@@ -1710,6 +1713,8 @@ def load_parcel_addresses(_sql_con, _from_shapefile, _cleanup):
                            r"VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s))" \
                            r"ON CONFLICT ON CONSTRAINT addressCAD_name_idx DO NOTHING"
 
+    re_pattern = re.compile(r"\s+")
+
     try:
         #
         # drop/create table for schema address
@@ -1799,9 +1804,6 @@ def load_parcel_addresses(_sql_con, _from_shapefile, _cleanup):
                     if "&" in address_dict["st_name"]:
                         continue
 
-                if 115 == address_dict["add_number"] and "CR 362" == address_dict["st_name"]:
-                    print("found")
-
                 if ec_util.to_upper_or_none(row[5]):
                     address_dict["city"] = ec_util.to_upper_or_none(row[5])
 
@@ -1859,6 +1861,11 @@ def load_parcel_addresses(_sql_con, _from_shapefile, _cleanup):
 
                     # check to see if an address exists with the address name full
                     address_parced_dict["source"] = "CAD"
+                    if address_parced_dict["st_name"] and address_parced_dict["st_name"].isalpha():
+                        st_name = re_pattern.sub("", address_parced_dict["st_name"].lower())
+                        address_parced_dict["soundex"] = phonetics.soundex(st_name, 4)
+                        address_parced_dict["metaphone"] = phonetics.metaphone(address_parced_dict["st_name"].lower())
+
                     mongo_address = MongoAddress.objects(ad_name_full=address_parced_dict["add_address"]).first()
                     if mongo_address:
                         for location in mongo_address.locations:
@@ -2060,6 +2067,8 @@ def load_e911_addresses(_con, _from_workspace, _cleanup=True):
                                r"VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,soundex(%s)) " \
                                r"ON CONFLICT ON CONSTRAINT address_911_constraint DO NOTHING"
 
+    re_pattern = re.compile(r"\s+")
+
     try:
         #
         # drop/create table for schema address
@@ -2142,7 +2151,8 @@ def load_e911_addresses(_con, _from_workspace, _cleanup=True):
                 address_dict["st_full_name"] = full_street_name(address_dict)
                 address_dict["add_address"] = full_address(address_dict)
                 global_id = row[8]
-                point = row[9]
+                if row[9]:
+                    address_dict["point"] = row[9].firstPoint
 
                 insert_cursor.insertRow((address_dict["add_number"],
                                          address_dict["st_prefix"],
@@ -2155,12 +2165,17 @@ def load_e911_addresses(_con, _from_workspace, _cleanup=True):
                                          address_dict["city"],
                                          address_dict["source"],
                                          global_id,
-                                         point))
+                                         address_dict["point"]))
 
                 # Insert into Address schema
                 sql_insert_address(sql_con, address_dict, SQL_INSERT_ADDRESSES_911)
 
                 address_dict["source"] = "E911"
+                if address_dict["st_name"] and address_dict["st_name"].isalpha():
+                    st_name = re_pattern.sub("", address_dict["st_name"].lower())
+                    address_dict["soundex"] = phonetics.soundex(st_name, 4)
+                    address_dict["metaphone"] = phonetics.metaphone(address_dict["st_name"].lower())
+
                 mongo_address = MongoAddress.objects(ad_name_full=address_dict["add_address"]).first()
                 if mongo_address:
                     for location in mongo_address.locations:

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Cattle Offspring</title>
+    <meta content="width=device-width, initial-scale=1" name="viewport">
+    <link href="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css" rel="stylesheet"/>
+    <script src="http://code.jquery.com/jquery-1.11.1.min.js"></script>
+    <script src="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
+	<script src="http://maps.google.com/maps/api/js?key=AIzaSyCimWgtLen2nUGzzuYQEiUG1pU3FkrW4iI"></script>
+
+    <style>
+        .ui-filter-inset {
+            margin-top: 0;
+        }
+        #map-canvas {
+            width : 100%;
+            height : 500%;
+        }
+    </style>
+
+    <script type="text/javascript">
+
+        $(document).on("pagecreate", function () {
+            $("#input_address").on('change', function () {
+                if ($(this).val() == '') {
+                    $("#phonetic_tbl tr").remove();
+                }
+            });
+
+
+            $("#list_address").on("tap", "li", function (event) {
+                let $ul = $(this);
+                $("#input_address").val($ul.text());
+                $("#list_address").html("");
+                $("#phonetic_tbl tr").remove();
+                $.getJSON('/phonetic/_compare', {"st_name": $ul.text()}, function (data) {
+                    $("#location-table thead").remove();
+                    let locs = "<table id='adtbl' class='table'>";
+                        locs = "<thead><tr><th data-priority='1'>Phonetic Similar</th></tr></thead><tbody></tbody>";
+                    $.each(data["phonetics"], function (idx, name) {
+                        console.log(name)
+                        locs += '<tr><td>' + name + '</td></tr>';
+                    });
+                    locs += "</table>"
+                    $("#phonetic_tbl").append(locs);
+                });
+            });
+
+
+            $("#list_address").on("filterablebeforefilter", function (e, data) {
+                let $ul = $(this),
+                    $input = $(data.input),
+                    value = $input.val(),
+                    html = "";
+                $ul.html("");
+
+                if (value && value.length > 2) {
+
+                    $ul.html("<li><div class='ui-loader'><span class='ui-icon ui-icon-loading'></span></div></li>");
+                    $ul.listview("refresh");
+
+                    $.getJSON("/phonetic/street", {"st_name": $input.val()}, function (response) {
+                        if (!response)
+                            return;
+                        $.each(response["st_names"], function (idx, st_name) {
+                            html += "<li>" + st_name + "</li>";
+                        });
+                        $ul.html(html);
+                        $ul.listview("refresh");
+                        $ul.trigger("updatelayout");
+                    });
+                }
+            });
+        });
+
+    </script>
+</head>
+<body>
+<div class="ui-widget" data-content-theme="a" data-role="page" data-theme="a">
+    <div data-role="header">
+        <h1>Street Phonetics</h1>
+    </div>
+    <div class="ui-content" role="main">
+        <form class="ui-filterable">
+            <input data-type="search" id="input_address" placeholder="Street Name..."/>
+        </form>
+        <ul data-filter="true" data-input="#input_address" data-inset="true" data-role="listview" id="list_address"
+        ></ul>
+
+        <div id="phonetic_tbl">
+        </div>
+
+
+        </div>
+
+
+    </div>
+</div>
+</body>
+</html>

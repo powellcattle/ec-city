@@ -25,7 +25,7 @@ psql_connection = ec_psql_util.psql_connection()
 #                                  uid="HOME-GIS\\sde;pwd=sde;")
 
 
-ec_addresses.setup_not_found_address_table(psql_connection)
+# ec_addresses.setup_not_found_address_table(psql_connection)
 
 # con = ec_sql_server_util.connect(driver=r"{SQL Server Native Client 11.0};",
 #                                  server="HOME-GIS\SQLEXPRESS;",
@@ -34,7 +34,7 @@ ec_addresses.setup_not_found_address_table(psql_connection)
 #                                  uid="HOME-GIS\\sde;pwd=sde;")
 
 # HGAC Data Load
-ec_addresses.load_starmap_streets(hgac_gdb)
+# ec_addresses.load_starmap_streets(hgac_gdb)
 # con = ec_sql_server_util.connect(driver=r"{SQL Server Native Client 11.0};",
 #                                  server="HOME-GIS\SQLEXPRESS;",
 #                                  database="ec;",
