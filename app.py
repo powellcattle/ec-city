@@ -77,7 +77,6 @@ def phonetic_street_compare():
             else:
                 results.add(address["st_name"])
 
-
         return jsonify({"phonetics": list(results)})
     else:
         return jsonify("")

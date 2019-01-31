@@ -5,6 +5,8 @@ import logging
 import os
 import zipfile
 from ftplib import FTP
+from pyproj import Proj, transform
+import openlocationcode
 
 import arcpy
 import yaml
@@ -74,6 +76,8 @@ def find_parcel_shape(_relative_path: str, _find_file: str, _filter: str ="*.shp
 parcel_update_fields = ["prop_id", "cad_url"]
 previous = "_previous"
 data_type = "FeatureClass"
+proj_2278 = Proj(init='EPSG:2278', preserve_units=True)
+proj_4326 = Proj(init='EPSG:4326')
 
 try:
     settings = Settings(yml_file)
@@ -128,41 +132,33 @@ try:
     arcpy.CopyFeatures_management(from_fc, to_fc)
     arcpy.Delete_management(from_fc)
 
-    # arcpy.Copy_management(cad_copy, county_parcel_owner)
-    # # Ownership FC no longer needed, delete
-    # arcpy.Delete_management(cad_copy)
 
-    # exists = arcpy.Exists(r"city_parcel_owner")
-    # if exists:
-    #     arcpy.Delete_management(r"city_parcel_owner")
-    # arcpy.Clip_analysis(r"county_parcel_owner", r"city_limits", r"city_parcel_owner")
-    # with arcpy.da.SearchCursor(r"parcel_city_clipped", original_fields) as cursor:
-    #     for row in cursor:
-    #         if row[0] is None:
-    #             continue
-    #         if row[1] is None:
-    #             continue
-    #         prop_id = int(row[0])
-    #         zone_id = int(row[1])
-    #         ec_hashmap.set(parcels_hashmap, prop_id, zone_id)
+    arcpy.AddField_management(to_fc, "plus_code", "TEXT", "", "11", "", "PLUS CODE", "NULLABLE", "NON_REQUIRED")
+    arcpy.AddField_management(to_fc, "cad_url", "TEXT", "", "", "100", "CAD URL","NULLABLE", "NON_REQUIRED")
+    fields = ["prop_id", "plus_code", "cad_url", "SHAPE@XY"]
+    to_fc = "".join((settings.data_set, "/", settings.feature_class))
+    with arcpy.da.UpdateCursor(to_fc, fields) as cursor:
+        for row in cursor:
 
-    # Add zone_id to county_par
-    # field_exists = ec_arcpy_util.fieldExists(county_parcel_owner, "cad_url")
-    # if field_exists is False:
-    #     arcpy.AddField_management(county_parcel_owner, "cad_url", "TEXT", "", "", "100", "CAD URL",
-    #                               "NULLABLE",
-    #                               "NON_REQUIRED")
-    #
-    #     with arcpy.da.UpdateCursor(county_parcel_owner, parcel_update_fields) as cursor:
-    #         for row in cursor:
-    #             prop_id = int(row[0])
-    #             if prop_id != 0:
-    #                 cad_url = "http://search.wharton.manatron.com/details.php?DB_account=R0" + str(
-    #                     prop_id) + "&account=R0" + str(prop_id)
-    #                 row[1] = cad_url
-    #                 cursor.updateRow(row)
-    #     arcpy.RegisterAsVersioned_management("Boundary", "EDITS_TO_BASE")
-    #     ec_arcpy_util.dbCompress(arcpy.env.workspace)
+            if row[0] is None or int(row[0]) == 0:
+                continue
+
+            plus_code = None
+            prop_id = int(row[0])
+            cad_url = f"http://search.wharton.manatron.com/details.php?DB_account=R0{str(prop_id)}&account=R0{str(prop_id)}"
+            row[2] = cad_url
+
+            if row[3] is None or row[3][0] is None or row[3][1] is None:
+                continue
+
+            x, y = row[3]
+            x, y = transform(proj_2278, proj_4326, x, y)
+            plus_code = openlocationcode.encode(y,x)
+            row[1] = plus_code
+            cursor.updateRow(row)
+
+    arcpy.RegisterAsVersioned_management(to_fc, "EDITS_TO_BASE")
+    ec_arcpy_util.dbCompress(arcpy.env.workspace)
 
 except Exception as e:
-    logging.error(e)
+    logging.error(f"{inspect.stack()[0][3]} {e}")
