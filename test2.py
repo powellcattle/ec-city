@@ -1,31 +1,31 @@
+import openpyxl
 
-import psycopg2
+wb = openpyxl.load_workbook(r"data/Incode/190325 Water Accts.xlsx", read_only=True)
 
-import ec_psql_util
+ws = wb["Water Accounts"]
 
+for row in ws:
+    if row[0].value == "MIU":
+        continue
+    miu = row[0].value
+    account = row[4].value
+    if account is None:
+        continue
+    meter = row[5].value
 
+    try:
+        if row[6].value is None:
+            continue
+        current = int(row[6].value)
+    except ValueError:
+        continue
 
+    try:
+        if row[7].value is None:
+            continue
+        previous = int(row[7].value)
+    except ValueError:
+        continue
 
-con = ec_psql_util.psql_connection()
-sql = r"SELECT distinct(st_name), st_predir, st_type, st_fullname, city FROM sde.starmap"
-cur = con.cursor()
-cur.execute(sql)
-rows = cur.fetchall()
-con.commit()
-
-sql_insert = r"INSERT INTO address.unique_street_names(st_name, st_prefix, st_type, st_full_name, city) " \
-             r"VALUES (%s,%s,%s,%s,%s) ON CONFLICT ON CONSTRAINT unique_street_name_unique DO NOTHING"
-
-con_insert = ec_psql_util.psql_connection()
-cur_insert = con_insert.cursor()
-
-for row in rows:
-    cur_insert.execute(sql_insert,[
-        str(row[0]),
-        str(row[1]),
-        str(row[2]),
-        str(row[3]),
-        str(row[4])
-    ])
-
-
+    consumption = current - previous
+    print(f"{account} {consumption}")

@@ -1,24 +1,26 @@
-import pathlib
-import re
 import inspect
 import logging
-import os
+# import os
+import pathlib
+import re
 import zipfile
 from ftplib import FTP
-from pyproj import Proj, transform
-import openlocationcode
 
 import arcpy
 import yaml
+from pyproj import Proj, transform
 
 import ec_arcpy_util
+import openlocationcode
 
 logging.basicConfig(format="%(asctime)s %(levelname)s:%(message)s",
-                    filename="parcel_updates.log",
+                    filename="update_parcel.log",
                     filemode="w",
                     level=logging.ERROR,
                     datefmt="%m/%d/%Y %I:%M:%S %p")
-
+#todo
+#make specific module to standalone
+#provide CLI
 
 class Settings:
     def __init__(self, _yml_file):
@@ -39,6 +41,9 @@ yml_file = "update_parcel_fc.yml"
 
 
 def download_parcel_ftp(_settings: Settings):
+    # todo
+    # integrate pathlib instead of os
+    # better error checking with custom Exceptions
     try:
         path = os.getcwd()
         os.rmdir(settings.download_path)
@@ -66,7 +71,7 @@ def download_parcel_ftp(_settings: Settings):
     zip_ref.close()
 
 
-def find_parcel_shape(_relative_path: str, _find_file: str, _filter: str ="*.shp") -> dict:
+def find_parcel_shape(_relative_path: str, _find_file: str, _filter: str = "*.shp") -> dict:
     p = pathlib.Path(_relative_path)
     for _ in p.rglob(_filter):
         if re.search(_find_file, _.name, re.IGNORECASE):
@@ -81,7 +86,9 @@ proj_4326 = Proj(init='EPSG:4326')
 
 try:
     settings = Settings(yml_file)
-    # download_parcel_ftp(settings)
+    if not __debug__:
+        # must start Python with - o to use
+        download_parcel_ftp(settings)
     shape_file_loc = find_parcel_shape(settings.download_path, settings.database)
     if not shape_file_loc:
         logging.error(f"Could not locate {settings.database}")
@@ -111,9 +118,9 @@ try:
         arcpy.Delete_management(fc_prev)
     if fc:
         fc_prev = "".join((settings.feature_class, previous))
-        # arcpy.Rename_management(str(settings.feature_class), str(fc_prev), data_type)
-        from_fc = "".join((settings.data_set,"/",settings.feature_class))
-        to_fc = "".join((settings.data_set,"/",settings.feature_class,previous))
+        from_fc = "".join((settings.data_set, "/", settings.feature_class))
+        to_fc = "".join((settings.data_set, "/", settings.feature_class, previous))
+        # arcpy.Rename_management(from_fc, to_fc, data_type)
         arcpy.CopyFeatures_management(from_fc, to_fc)
         arcpy.Delete_management(fc)
 
@@ -126,39 +133,40 @@ try:
     arcpy.FeatureClassToGeodatabase_conversion(shp_fc_file, ds)
 
     shp_fc = ec_arcpy_util.find_feature_class("".join(("*", shp_name)), ds)
-    # arcpy.Rename_management(str(shp_name), str(settings.feature_class), data_type)
-    from_fc = "".join((settings.data_set, "/", shp_name))
+    # Can not use rename because of a severe bug
     to_fc = "".join((settings.data_set, "/", settings.feature_class))
+    from_fc = "".join((settings.data_set, "/", shp_name))
+    # arcpy.Rename_management(from_fc, to_fc, data_type)
     arcpy.CopyFeatures_management(from_fc, to_fc)
     arcpy.Delete_management(from_fc)
 
-
-    arcpy.AddField_management(to_fc, "plus_code", "TEXT", "", "11", "", "PLUS CODE", "NULLABLE", "NON_REQUIRED")
-    arcpy.AddField_management(to_fc, "cad_url", "TEXT", "", "", "100", "CAD URL","NULLABLE", "NON_REQUIRED")
+    arcpy.AddField_management(to_fc, "plus_code", "TEXT", "", "", "11", "PLUS CODE", "NULLABLE", "NON_REQUIRED")
+    arcpy.AddField_management(to_fc, "cad_url", "TEXT", "", "", "100", "CAD URL", "NULLABLE", "NON_REQUIRED")
     fields = ["prop_id", "plus_code", "cad_url", "SHAPE@XY"]
-    to_fc = "".join((settings.data_set, "/", settings.feature_class))
-    with arcpy.da.UpdateCursor(to_fc, fields) as cursor:
-        for row in cursor:
 
-            if row[0] is None or int(row[0]) == 0:
+    with arcpy.UpdateCursor(to_fc, fields) as cursor:
+        for row in cursor:
+            if row[0] is None:
                 continue
 
-            plus_code = None
             prop_id = int(row[0])
             cad_url = f"http://search.wharton.manatron.com/details.php?DB_account=R0{str(prop_id)}&account=R0{str(prop_id)}"
             row[2] = cad_url
 
+            # check for valid x,y tuple
             if row[3] is None or row[3][0] is None or row[3][1] is None:
                 continue
 
             x, y = row[3]
+            # convert from State Plane to lat/lng
             x, y = transform(proj_2278, proj_4326, x, y)
-            plus_code = openlocationcode.encode(y,x)
+            plus_code = openlocationcode.encode(y, x)
             row[1] = plus_code
             cursor.updateRow(row)
 
-    arcpy.RegisterAsVersioned_management(to_fc, "EDITS_TO_BASE")
+    arcpy.RegisterAsVersioned_management(ds, "EDITS_TO_BASE")
     ec_arcpy_util.dbCompress(arcpy.env.workspace)
+    logging.info("Successful completion")
 
 except Exception as e:
     logging.error(f"{inspect.stack()[0][3]} {e}")

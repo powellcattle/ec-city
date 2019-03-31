@@ -1,0 +1,6 @@
+geodatabase :
+  workspace : C:\Users\spowell\AppData\Roaming\ESRI\Desktop10.6\ArcCatalog\dev.cityofelcampo.org.sde
+  data_set : StreetData
+  feature_classes :
+    - ec.sde.DTSpci
+    - ec.sde.StreetsData
