@@ -1,6 +1,6 @@
 from nosql.address import MongoAddress
 
-__author__ = 'spowell'
+__author__ = "spowell"
 import logging
 import openlocationcode
 from flask import Flask
@@ -23,8 +23,12 @@ re_pattern = re.compile(r"\s+")
 
 @app.before_first_request
 def startup():
+    logging.debug("startup()")
     mongo_setup.global_init()
 
+@app.route("/_test")
+def test():
+    return "Hello Flask World"
 
 @app.route("/_address_location")
 def address_details():
@@ -50,14 +54,14 @@ def address_details():
 
         return jsonify(ret)
     except Exception as e:
-        return (str(e))
+        return str(e)
 
 @app.route("/phonetic/_compare", methods=["GET"])
 def phonetic_street_compare():
     st_name = request.args.get("st_name")
     st_name = re_pattern.sub("", st_name.lower())
     soundex = phonetics.soundex(st_name)
-    print(soundex)
+    logging.debug(soundex)
 
     results = set()
     soundexes = MongoAddress.objects(st_city="EL CAMPO", soundex=soundex)
@@ -86,7 +90,7 @@ def get_street():
     request_stname = request.args.get("st_name")
 
     if request_stname:
-        print(request_stname)
+        logging.debug(request_stname)
         addresses = MongoAddress.objects(st_city="EL CAMPO", st_name__icontains=request_stname)
 
     results = set()
@@ -110,15 +114,17 @@ def get_address():
     req_address = request.args.get("get_address")
 
     if req_address:
-        print(req_address)
+        logging.debug(req_address)
         addresses = MongoAddress.objects(st_city="EL CAMPO", ad_name_full__icontains=req_address)[:5]
+
     else:
-        print("find all")
+        logging.debug("find all")
         addresses = MongoAddress.objects(st_city="EL CAMPO")[:5]
 
     results = list()
     if addresses:
         for address in addresses:
+            logging.debug(address.ad_name_full)
             results.append(address.ad_name_full)
         return jsonify({"addresses": results})
     else:
